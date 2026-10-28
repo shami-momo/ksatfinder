@@ -152,6 +152,7 @@ async function loadMoon() {
 
 function sizeCanvas() {
   const box = canvas.getBoundingClientRect(), dpr = Math.min(devicePixelRatio || 1, 2);
+  if (!box.width || !box.height) return null;
   const width = Math.round(box.width * dpr), height = Math.round(box.height * dpr);
   if (canvas.width !== width || canvas.height !== height) { canvas.width = width; canvas.height = height; }
   ctx.setTransform(canvas.width / box.width, 0, 0, canvas.height / box.height, 0, 0);
@@ -234,7 +235,9 @@ function renderMap() {
     if (!moonView || !moonData || Date.now()-Date.parse(moonData.fetchedAt)>=86400000) loadMoon();
     return;
   }
-  const { w,h } = sizeCanvas(), time = atTime(), visible = activeSats();
+  const size=sizeCanvas();
+  if (!size) return;
+  const {w,h}=size, time=atTime(), visible=activeSats();
   ctx.clearRect(0,0,w,h);
   const axisScale = canvas.width/w;
   if (longitudeAxis.width!==canvas.width) longitudeAxis.width=canvas.width;
@@ -427,7 +430,7 @@ $('#time-range').addEventListener('input',event => { state.offset = Number(event
 $('#now-button').addEventListener('click',() => { state.anchor = Date.now(); state.offset = 0; state.playing = false; $('#time-range').value = 0; updateTime(); });
 $('#play-button').addEventListener('click',() => { state.playing = !state.playing; updateTime(); });
 $('#fetch-data').addEventListener('click',() => connectPublic(true));
-window.addEventListener('resize',() => { clampMap(); draw(); });
+new ResizeObserver(()=>{clampMap(); draw();}).observe($('#map-wrap'));
 window.addEventListener('keydown',event => { if (state.view === 'earth' && event.key === '/' && !['INPUT','TEXTAREA'].includes(document.activeElement.tagName)) { event.preventDefault(); $('#search').focus(); } });
 setInterval(() => {
   if (document.hidden) return;

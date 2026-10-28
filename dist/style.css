@@ -102,7 +102,8 @@ a:hover { color: var(--main); }
 .view-toggle button.active { border-color: var(--main-softer); background: var(--highlight-soft); color: var(--main); }
 
 .map-frame { display:grid; grid-template-columns:42px minmax(0,1fr); grid-template-rows:auto 28px; overflow:hidden; border:1px solid var(--line-soft); border-radius:var(--inner-radius); background:var(--bg); }
-.map-wrap { grid-column:2; grid-row:1; min-width:0; position:relative; min-height:380px; aspect-ratio:2; overflow:hidden; background:#f3f6fb; }
+.map-wrap { grid-column:2; grid-row:1; width:100%; min-width:0; min-height:0; position:relative; aspect-ratio:2 / 1; overflow:hidden; background:#f3f6fb; }
+.moon-active .map-wrap { min-height:380px; }
 .latitude-axis { grid-column:1; grid-row:1; display:block; width:42px; height:100%; min-height:0; border-right:1px solid var(--line-soft); }
 .longitude-axis { grid-column:2; grid-row:2; display:block; width:100%; min-width:0; height:28px; border-top:1px solid var(--line-soft); }
 .axis-corner { grid-column:1; grid-row:2; border-top:1px solid var(--line-soft); border-right:1px solid var(--line-soft); }
@@ -209,7 +210,7 @@ a:hover { color: var(--main); }
   .header-inner { gap: var(--space-5); padding-inline: var(--space-5); }
   .workspace { grid-template-columns: minmax(0, 1fr) 380px; gap: var(--space-4); padding: var(--space-5); }
   .stage, .sidebar, .selected-panel { --panel-padding:var(--space-4); }
-  .map-wrap { min-height: 360px; }
+  .moon-active .map-wrap { min-height:360px; }
 }
 @media (max-width: 1000px) {
   .workspace.moon-active { grid-template-areas:'selected' 'map'; }
@@ -225,7 +226,7 @@ a:hover { color: var(--main); }
   .site-nav { margin-left: auto; }
   .site-nav button { padding:0 var(--space-3); font-size:14px; }
   .workspace { padding: var(--space-4); }
-  .map-wrap { min-height: 370px; }
+  .moon-active .map-wrap { min-height:0; aspect-ratio:1; }
   .detail-grid { grid-template-columns: 1fr 1fr; }
   .detail-grid strong { font-size: 19px; }
   .catalog-toolbar { display: flex; flex-direction: column; align-items: stretch; }
