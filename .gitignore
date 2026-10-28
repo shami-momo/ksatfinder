@@ -1,0 +1,11 @@
+node_modules/
+.vercel/
+dist/vendor/
+dist/data/
+dist/licenses/satellite-LICENSE.txt
+
+data/orbits.json
+data/orbits.json.*.tmp
+
+data/danuri.json
+data/danuri.json.*.tmp

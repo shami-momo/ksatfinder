@@ -1,0 +1,7 @@
+node_modules
+.git
+.vercel
+server.mjs
+data/orbits.json
+data/danuri.json
+data/*.tmp
