@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { sampleDanuri } from './orbits.js';
+import { frameCamera } from './map.js';
 
 export async function createMoon(container,label) {
   const response=await fetch('/textures/moon.jpg',{signal:AbortSignal.timeout(15000)});
@@ -12,17 +13,17 @@ export async function createMoon(container,label) {
   const renderer = new THREE.WebGLRenderer({antialias:true,powerPreference:'low-power'});
   renderer.setPixelRatio(Math.min(devicePixelRatio||1,2));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
-  renderer.domElement.className = 'moon-canvas';
+  renderer.domElement.className = 'space-canvas';
   renderer.domElement.setAttribute('aria-label','달 표면과 다누리 궤적. 드래그로 회전하고 스크롤로 확대합니다.');
   container.prepend(renderer.domElement);
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color('#f8fafc');
+  scene.background = new THREE.Color(getComputedStyle(container).getPropertyValue('--space-bg').trim());
   const camera = new THREE.PerspectiveCamera(42,1,0.01,100);
   camera.position.set(3.5,1.8,3.5);
   const controls = new OrbitControls(camera,renderer.domElement);
   controls.enablePan = false;
   controls.minDistance = 1.35;
-  controls.maxDistance = 9;
+  controls.maxDistance = 60;
   controls.rotateSpeed = 0.7;
   controls.zoomSpeed = 0.8;
   texture.colorSpace = THREE.SRGBColorSpace;
@@ -30,8 +31,8 @@ export async function createMoon(container,label) {
   // Image texture only: no bump, displacement or terrain geometry.
   const globe = new THREE.Mesh(new THREE.SphereGeometry(1,96,48),new THREE.MeshBasicMaterial({map:texture}));
   scene.add(globe);
-  const previous = new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:'#2859c5'}));
-  const next = new THREE.Line(new THREE.BufferGeometry(),new THREE.LineDashedMaterial({color:'#5f82dd',dashSize:0.025,gapSize:0.018}));
+  const previous = new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial());
+  const next = new THREE.Line(new THREE.BufferGeometry(),new THREE.LineDashedMaterial({dashSize:0.025,gapSize:0.018}));
   for (const line of [previous,next]) {
     line.geometry.setAttribute('position',new THREE.Float32BufferAttribute(new Float32Array(151*3),3));
     line.geometry.setDrawRange(0,0);
@@ -39,20 +40,26 @@ export async function createMoon(container,label) {
   }
   next.geometry.setAttribute('lineDistance',new THREE.Float32BufferAttribute(new Float32Array(151),1));
   scene.add(previous,next);
-  const marker = new THREE.Mesh(new THREE.SphereGeometry(1,16,12),new THREE.MeshBasicMaterial({color:'#2859c5'}));
+  const marker = new THREE.Mesh(new THREE.SphereGeometry(1,16,12),new THREE.MeshBasicMaterial());
   scene.add(marker);
-  let data, time=Date.now(), showTrack=true, initial=true, trackSecond, renderWidth, renderHeight;
+  let data, time=Date.now(), initial=true, trackSecond, renderWidth, renderHeight;
   const vector = p=>new THREE.Vector3(p.x,p.z,-p.y).divideScalar(data.radius);
+
+  const styles=getComputedStyle(container);
+  const value=key=>styles.getPropertyValue('--'+key).trim();
+  previous.material.color.set(value('main'));
+  next.material.color.set(value('main-bright'));
+  marker.material.color.set(value('main'));
 
   function render() {
     const width=container.clientWidth,height=container.clientHeight;
     if (!width || !height || container.closest('[hidden]')) return;
     if (width!==renderWidth || height!==renderHeight) {
       renderer.setSize(width,height,false);
-      camera.aspect=width/height; camera.updateProjectionMatrix();
       renderWidth=width; renderHeight=height;
     }
-    marker.scale.setScalar(camera.position.length()*0.006);
+    marker.scale.setScalar(camera.position.length()*0.004);
+    frameCamera(camera,width,height);
     renderer.render(scene,camera);
     if (!marker.visible) { label.hidden=true; return; }
     const delta=marker.position.clone().sub(camera.position), distance=delta.length(), direction=delta.divideScalar(distance);
@@ -65,22 +72,24 @@ export async function createMoon(container,label) {
   }
 
   function reset() {
+    const angle=frameCamera(camera,container.clientWidth,container.clientHeight);
+    const distance=Math.min(controls.maxDistance,1.2/Math.sin(angle)*1.1);
     const current=sampleDanuri(data,time), later=sampleDanuri(data,time+60000);
     if (current && later) {
       const radial=vector(current).normalize(), normal=vector(current).cross(vector(later)).normalize();
-      camera.position.copy(normal.multiplyScalar(0.9).addScaledVector(radial,0.8).normalize().multiplyScalar(4.1));
-    } else camera.position.set(3.5,1.8,3.5);
+      camera.position.copy(normal.multiplyScalar(0.9).addScaledVector(radial,0.8).normalize().multiplyScalar(distance));
+    } else camera.position.set(3.5,1.8,3.5).normalize().multiplyScalar(distance);
     controls.target.set(0,0,0); controls.update(); render();
   }
 
-  function update(date,track=true) {
-    time=Number(date); showTrack=track;
+  function update(date) {
+    time=Number(date);
     const p=sampleDanuri(data,time);
     marker.visible=Boolean(p);
-    previous.visible=next.visible=Boolean(p && showTrack);
+    previous.visible=next.visible=Boolean(p);
     if (p) {
       marker.position.copy(vector(p));
-      if (showTrack && trackSecond!==Math.floor(time/1000)) {
+      if (trackSecond!==Math.floor(time/1000)) {
         for (const [line,sign] of [[previous,-1],[next,1]]) {
           const positions=line.geometry.getAttribute('position');
           const distances=line.geometry.getAttribute('lineDistance');
@@ -109,7 +118,7 @@ export async function createMoon(container,label) {
   new ResizeObserver(render).observe(container);
   update(time);
   return {
-    setData(value) { data=value; trackSecond=undefined; update(time,showTrack); }, update, reset,
+    setData(value) { data=value; trackSecond=undefined; update(time); }, update, reset,
     zoom(factor) { camera.position.multiplyScalar(1/factor).clampLength(controls.minDistance,controls.maxDistance); controls.update(); render(); }
   };
 }

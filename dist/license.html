@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="theme-color" content="#ffffff">
+  <meta name="theme-color" content="#171e28">
   <meta name="description" content="대한민국의 인공위성과 탐사선">
   <link rel="canonical" href="/license.html">
   <meta property="og:type" content="website">
@@ -26,7 +26,10 @@
 </head>
 <body>
   <header class="site-header">
-    <div class="header-inner"><a class="brand" href="/">KSATFiNDER</a></div>
+    <div class="header-inner">
+      <a class="brand" href="/">KSATFiNDER</a>
+      <div class="header-actions"><a class="license-link" href="/license.html" aria-current="page">License</a></div>
+    </div>
   </header>
   <main class="license-page">
     <a class="license-back" href="/">← 메인</a>
@@ -54,10 +57,12 @@
         <h2 id="maps-title">출처</h2>
         <ul>
           <li>세계지도 : <a href="https://commons.wikimedia.org/wiki/File:BlankMap-Equirectangular.svg" target="_blank" rel="noopener noreferrer">Natural Earth / BlankMap-Equirectangular.svg</a> · <a href="https://creativecommons.org/publicdomain/zero/1.0/" target="_blank" rel="noopener noreferrer">CC0</a></li>
+          <li>지구 렌더링 : <a href="https://threejs.org/examples/webgpu_tsl_earth.html" target="_blank" rel="noopener noreferrer">Three.js 공식 TSL Earth 예제</a> · <a href="https://github.com/mrdoob/three.js/blob/r186/examples/webgpu_tsl_earth.html" target="_blank" rel="noopener noreferrer">원본 코드</a>. 낮·밤 전환, 구름, 표면 헤이즈와 대기층을 적용했습니다. 반사·범프 효과는 제외했으며 태양 방향은 사이트의 선택 시각에 맞춰 계산합니다.</li>
+          <li>지구 낮·밤·구름 이미지 : 공식 예제에 포함된 4K 이미지 세트. 원본은 <a href="https://www.solarsystemscope.com/textures/" target="_blank" rel="noopener noreferrer">Solar System Scope</a>이며 Three.js 예제에서 크기 조정과 채널 합성을 거쳤습니다. <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer">CC BY 4.0</a>. 합성 이미지의 구름 채널을 사용하며 구름과 야간 불빛은 고정된 이미지입니다.</li>
           <li>궤도 계산 : <a href="https://github.com/shashwatak/satellite-js" target="_blank" rel="noopener noreferrer">satellite.js</a> · <a href="/licenses/satellite-LICENSE.txt">MIT 라이선스</a>.</li>
           <li>다누리 궤적과 거리 : <a href="https://ssd.jpl.nasa.gov/horizons/" target="_blank" rel="noopener noreferrer">NASA/JPL Horizons</a> · <a href="https://ssd-api.jpl.nasa.gov/doc/horizons.html" target="_blank" rel="noopener noreferrer">API 문서</a>.</li>
           <li>달 표면 이미지 : <a href="https://svs.gsfc.nasa.gov/4720/" target="_blank" rel="noopener noreferrer">NASA Scientific Visualization Studio · CGI Moon Kit</a>. LRO / LROC / NASA / GSFC / Arizona State University.</li>
-          <li>3D 달 렌더링 : <a href="https://threejs.org/" target="_blank" rel="noopener noreferrer">Three.js</a> · <a href="/licenses/three-LICENSE.txt">MIT 라이선스</a>.</li>
+          <li>3D 지구·달 렌더링 : <a href="https://threejs.org/" target="_blank" rel="noopener noreferrer">Three.js</a> · <a href="/licenses/three-LICENSE.txt">MIT 라이선스</a>.</li>
         </ul>
       </section>
     </article>

@@ -8,6 +8,8 @@ const path=name=>fileURLToPath(new URL(name,import.meta.url));
 const assets={
   '/vendor/satellite.es.js':path('node_modules/satellite.js/dist/satellite.es.js'),
   '/vendor/three.module.js':path('node_modules/three/build/three.module.js'),
+  '/vendor/three.webgpu.js':path('node_modules/three/build/three.webgpu.js'),
+  '/vendor/three.tsl.js':path('node_modules/three/build/three.tsl.js'),
   '/vendor/three.core.js':path('node_modules/three/build/three.core.js'),
   '/vendor/OrbitControls.js':path('node_modules/three/examples/jsm/controls/OrbitControls.js'),
   '/licenses/satellite-LICENSE.txt':path('node_modules/satellite.js/LICENSE.md'),

@@ -1,4 +1,4 @@
-import { json2satrec, propagate, gstime, eciToGeodetic, degreesLong, degreesLat } from 'satellite.js';
+import { json2satrec, propagate, gstime, eciToGeodetic, eciToEcf, degreesLong, degreesLat } from 'satellite.js';
 
 import satellites from '../data/satellites.json' with { type:'json' };
 export const CATALOG = satellites;
@@ -30,10 +30,11 @@ export function position(sat, date) {
     sat.record ||= json2satrec(sat.elements);
     const result = propagate(sat.record, date);
     if (!result?.position || !Object.values(result.position).every(Number.isFinite)) return null;
-    const geo = eciToGeodetic(result.position, gstime(date));
+    const sidereal=gstime(date);
+    const geo = eciToGeodetic(result.position, sidereal);
     const lat = degreesLat(geo.latitude), lon = degreesLong(geo.longitude);
     if (![lat, lon, geo.height].every(Number.isFinite) || geo.height < 0) return null;
-    return { lat, lon, altitude: geo.height, period: 1440 / sat.elements.MEAN_MOTION };
+    return { lat, lon, altitude:geo.height, period:1440/sat.elements.MEAN_MOTION, eci:result.position, ecf:eciToEcf(result.position,sidereal) };
   } catch { return null; }
 }
 

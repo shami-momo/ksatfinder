@@ -8,6 +8,7 @@
     "build": "node build.mjs"
   },
   "dependencies": {
+    "@vercel/functions": "3.10.4",
     "satellite.js": "6.0.1",
     "three": "^0.186.1"
   },

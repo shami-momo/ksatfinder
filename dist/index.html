@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="theme-color" content="#ffffff">
+  <meta name="theme-color" content="#171e28">
   <meta name="description" content="대한민국의 인공위성과 탐사선">
   <link rel="canonical" href="/">
   <meta property="og:type" content="website">
@@ -25,112 +25,129 @@
   <link rel="preload" href="/fonts/IBMPlexMono-Regular.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="/fonts/NEXONFootballGothicBA1.woff" as="font" type="font/woff" crossorigin>
   <link rel="stylesheet" href="./style.css">
-  <script type="importmap">{"imports":{"satellite.js":"/vendor/satellite.es.js","three":"/vendor/three.module.js","three/addons/controls/OrbitControls.js":"/vendor/OrbitControls.js"}}</script>
+  <script type="importmap">{"imports":{"satellite.js":"/vendor/satellite.es.js","three":"/vendor/three.module.js","three/webgpu":"/vendor/three.webgpu.js","three/tsl":"/vendor/three.tsl.js","three/addons/controls/OrbitControls.js":"/vendor/OrbitControls.js"}}</script>
   <script type="module" src="./app.js"></script>
 </head>
-<body>
+<body class="explorer">
   <header class="site-header">
     <div class="header-inner">
-      <a class="brand" href="./">KSATFiNDER</a>
-      <nav class="site-nav" aria-label="화면 선택">
-        <button class="active" type="button" data-view="earth">지구</button>
-        <button type="button" data-view="moon">달</button>
-      </nav>
+      <div class="brand-group">
+        <a class="brand" href="./">KSATFiNDER</a>
+        <time class="header-clock" id="clock" title="KST · 한국 표준시">--:--:--</time>
+      </div>
+      <div class="header-actions">
+        <a class="license-link" href="/license.html">License</a>
+        <nav class="site-nav" aria-label="화면 선택">
+          <button type="button" data-view="earth" aria-pressed="true">지구</button>
+          <button type="button" data-view="moon" aria-pressed="false">달</button>
+        </nav>
+      </div>
     </div>
   </header>
   <div class="shell">
     <main class="workspace">
-      <section class="selected-panel" aria-label="선택한 위성">
-        <div class="detail" id="detail" aria-label="선택한 위성 정보" aria-live="polite">
-          <p class="empty" data-detail="empty" hidden>선택한 위성이 없습니다.</p>
-          <div data-detail="content">
-            <div class="detail-status">
-              <span class="sat-state" data-detail="status">—</span>
-              <span class="sat-state" data-detail="group">—</span>
-              <span class="sat-state" data-detail="agency" hidden></span>
-            </div>
-            <h2 class="detail-name" data-detail="name">위성 정보</h2>
-            <div class="detail-en" data-detail="english">—</div>
-            <dl class="detail-launch">
-              <dt><span>발</span><span>사</span><span>일</span></dt><dd><time data-detail="launched">—</time> <span>UTC</span></dd>
-              <dt hidden><span>발</span><span>사</span><span>체</span></dt><dd data-detail="vehicle" hidden></dd>
-              <dt hidden><span>발</span><span>사</span><span>장</span></dt><dd data-detail="site" hidden></dd>
-              <dt><span>상</span><span>세</span></dt><dd data-detail="description">—</dd>
-            </dl>
-            <div class="detail-grid" data-detail="earthGrid" hidden>
-              <div><span>고도</span><strong class="orbital-value" data-detail="altitude">—</strong></div>
-              <div><span>공전 주기</span><strong class="orbital-value" data-detail="period">—</strong></div>
-              <div><span>궤도 경사</span><strong class="orbital-value" data-detail="inclination">—</strong></div>
-              <div><span>이심률</span><strong class="orbital-value" data-detail="eccentricity">—</strong></div>
-              <div><span>위도</span><strong class="orbital-value" data-detail="latitude">—</strong></div>
-              <div><span>경도</span><strong class="orbital-value" data-detail="longitude">—</strong></div>
-            </div>
-            <div class="detail-grid" data-detail="moonGrid" hidden>
-              <div><span>고도</span><strong class="orbital-value" data-detail="moonAltitude">—</strong></div>
-              <div><span>달 중심 거리</span><strong class="orbital-value" data-detail="moonDistance">—</strong></div>
-              <div><span>달 위도</span><strong class="orbital-value" data-detail="moonLatitude">—</strong></div>
-              <div><span>달 경도</span><strong class="orbital-value" data-detail="moonLongitude">—</strong></div>
-              <div><span>지구까지의 거리</span><strong class="orbital-value" data-detail="earthDistance">—</strong></div>
-              <div><span title="2022년 12월 17일 02:45 KST, 1차 달 궤도 진입기동 기준">달 궤도 진입 후</span><strong class="orbital-value" data-detail="lunarElapsed">—</strong></div>
-            </div>
-            <p class="no-data" data-detail="noData">궤도 자료를 불러오는 중입니다.</p>
-          </div>
-        </div>
-      </section>
       <section class="stage" aria-label="위성 지도">
         <div class="map-frame axes-hidden">
         <canvas id="latitude-axis" class="latitude-axis" aria-label="위도 눈금" role="img"></canvas>
         <div class="map-wrap" id="map-wrap">
-          <img id="world-map" class="world-map" src="/world.svg" alt="" aria-hidden="true" draggable="false">
-          <canvas id="map" aria-label="위성 위치 지도" role="img"></canvas>
-          <div id="map-markers" class="map-markers earth-only" aria-label="지도에서 위성 선택"></div>
-          <p id="map-message" class="map-message" role="status">지도 불러오는 중</p>
-          <div id="moon-panel" class="moon-panel" hidden>
-            <div id="moon-scene" class="moon-scene"><span id="moon-label" class="moon-label" hidden>다누리</span></div>
-            <p id="moon-message" class="moon-message" role="status">다누리 궤적을 불러오는 중</p>
+          <div id="world-map" class="world-map flat-only" aria-hidden="true"></div>
+          <canvas id="map" class="flat-only" aria-label="위성 위치 지도" role="img"></canvas>
+          <div id="map-markers" class="map-markers earth-only flat-only" aria-label="지도에서 위성 선택"></div>
+          <p id="map-message" class="map-message flat-only" role="status">지도 불러오는 중</p>
+          <div id="earth-panel" class="space-panel" hidden>
+            <div id="earth-scene" class="space-scene">
+              <span id="earth-label" class="space-label" hidden></span>
+              <span id="earth-hover" class="space-label secondary" hidden></span>
+            </div>
+            <p id="earth-message" class="space-message" role="status">3D 지구를 불러오는 중</p>
+          </div>
+          <div id="moon-panel" class="space-panel" hidden>
+            <div id="moon-scene" class="space-scene"><span id="moon-label" class="space-label" hidden>다누리</span></div>
+            <p id="moon-message" class="space-message" role="status">다누리 궤적을 불러오는 중</p>
           </div>
         </div>
         <div class="axis-corner" aria-hidden="true"></div>
         <canvas id="longitude-axis" class="longitude-axis" aria-label="경도 눈금" role="img"></canvas>
         </div>
-        <div class="map-toolbar">
-          <div class="view-toggle" role="group" aria-label="지도 표시">
-            <button id="grid-toggle" class="earth-only" type="button" aria-pressed="false">격자</button>
-            <button id="track-toggle" class="active" type="button" aria-pressed="true">궤적</button>
-          </div>
-          <div class="map-controls" role="group" aria-label="지도 확대">
-            <button id="zoom-in" class="icon-button" type="button" aria-label="지도 확대"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-zoom-in preview-icon" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/><line x1="11" x2="11" y1="8" y2="14"/><line x1="8" x2="14" y1="11" y2="11"/></svg></button>
-            <button id="zoom-out" class="icon-button" type="button" aria-label="지도 축소"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-zoom-out preview-icon" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/><line x1="8" x2="14" y1="11" y2="11"/></svg></button>
-            <button id="zoom-reset" type="button">전체</button>
-          </div>
-        </div>
-        <div class="timebar">
-          <div class="timebar-heading"><strong id="time-label">현재 시각</strong><button class="now-button" id="now-button" type="button">현재 시각</button></div>
-          <div class="range-row"><button id="play-button" class="play-button" type="button" aria-label="시간 재생" aria-pressed="false"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-play preview-icon" aria-hidden="true" focusable="false"><path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"/></svg><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-pause preview-icon" aria-hidden="true" focusable="false"><rect x="14" y="3" width="5" height="18" rx="1"/><rect x="5" y="3" width="5" height="18" rx="1"/></svg></button><span>−90분</span><input id="time-range" type="range" min="-90" max="90" value="0" step="1" aria-label="현재 시각 기준 시간 이동"><span>+90분</span></div>
-          <div class="timebar-footer">
-            <p class="range-hint earth-only">갱신 이후의 위치는 예상 위치로 실제와 차이가 있을 수 있음.</p>
-            <p class="range-hint moon-only">NASA/JPL 궤적을 보간한 예측 위치입니다. 드래그로 회전하고 스크롤로 확대할 수 있습니다.</p>
-            <div class="track-legend" aria-label="궤적 범례"><span><i aria-hidden="true"></i>이전 궤적</span><span><i aria-hidden="true"></i>이후 궤적</span></div>
-          </div>
-        </div>
       </section>
-      <aside class="sidebar earth-only" aria-label="위성 목록">
-        <div class="catalog-toolbar">
-        <div class="sidebar-heading"><h2>위성 목록 <span id="mission-count">—</span></h2><p id="catalog-summary"></p></div>
-        <label class="search"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-search preview-icon" aria-hidden="true" focusable="false"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg><input id="search" type="search" aria-label="위성 검색" placeholder="위성 이름 또는 임무" autocomplete="off"><kbd>/</kbd></label>
-        <div class="filters" role="group" aria-label="궤도 종류 필터"><button class="active" type="button" data-filter="ALL" aria-pressed="true">전체</button><button type="button" data-filter="LEO" aria-pressed="false">저궤도</button><button type="button" data-filter="GEO" aria-pressed="false">정지궤도</button></div>
+      <div class="panel-layer" data-expanded="false" data-list-open="false">
+        <div class="detail-dock">
+          <button id="panel-expand" class="panel-summary" type="button" aria-expanded="false" aria-controls="panel-content" aria-label="위성 패널 펼치기">
+            <span><strong id="panel-name">우리별 1호</strong><span id="panel-metric">궤도 자료를 불러오는 중</span></span>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 15 6-6 6 6"/></svg>
+          </button>
+          <div class="panel-content" id="panel-content">
+            <section class="selected-panel" id="detail" aria-label="선택한 위성 정보" aria-live="polite">
+              <p class="empty" data-detail="empty" hidden>선택한 위성이 없습니다.</p>
+              <div data-detail="content">
+                <div class="detail-status">
+                  <span class="sat-state" data-detail="status">—</span>
+                  <span class="sat-state" data-detail="group">—</span>
+                  <span class="sat-state" data-detail="agency" hidden></span>
+                </div>
+                <h2 class="detail-name" data-detail="name">위성 정보</h2>
+                <div class="detail-en" data-detail="english">—</div>
+                <dl class="detail-launch">
+                  <dt>발사일</dt><dd><time data-detail="launched">—</time> <span>UTC</span></dd>
+                  <dt hidden>발사체</dt><dd data-detail="vehicle" hidden></dd>
+                  <dt hidden>발사장</dt><dd data-detail="site" hidden></dd>
+                  <dt>상세</dt><dd data-detail="description">—</dd>
+                </dl>
+                <div class="detail-grid" data-detail="earthGrid" hidden>
+                  <div><span>고도</span><strong class="orbital-value" data-detail="altitude">—</strong></div>
+                  <div><span>공전 주기</span><strong class="orbital-value" data-detail="period">—</strong></div>
+                  <div><span>궤도 경사</span><strong class="orbital-value" data-detail="inclination">—</strong></div>
+                  <div><span>이심률</span><strong class="orbital-value" data-detail="eccentricity">—</strong></div>
+                  <div><span>위도</span><strong class="orbital-value" data-detail="latitude">—</strong></div>
+                  <div><span>경도</span><strong class="orbital-value" data-detail="longitude">—</strong></div>
+                </div>
+                <div class="detail-grid" data-detail="moonGrid" hidden>
+                  <div><span>고도</span><strong class="orbital-value" data-detail="moonAltitude">—</strong></div>
+                  <div><span>달 중심 거리</span><strong class="orbital-value" data-detail="moonDistance">—</strong></div>
+                  <div><span>달 위도</span><strong class="orbital-value" data-detail="moonLatitude">—</strong></div>
+                  <div><span>달 경도</span><strong class="orbital-value" data-detail="moonLongitude">—</strong></div>
+                  <div><span>지구까지의 거리</span><strong class="orbital-value" data-detail="earthDistance">—</strong></div>
+                  <div><span title="2022년 12월 17일 02:45 KST, 1차 달 궤도 진입기동 기준">달 궤도 진입 후</span><strong class="orbital-value" data-detail="lunarElapsed">—</strong></div>
+                </div>
+                <p class="no-data" data-detail="noData">궤도 자료를 불러오는 중입니다.</p>
+              </div>
+            </section>
+          </div>
+          <div class="control-panel" role="group" aria-label="지도 제어">
+            <div class="control-tools" role="group" aria-label="지도 도구">
+              <div class="map-display-tools earth-only">
+                <div class="site-nav earth-only" role="group" aria-label="지도 표시">
+                  <button type="button" data-earth-mode="2d" aria-pressed="true">2D</button>
+                  <button type="button" data-earth-mode="3d" aria-pressed="false">3D</button>
+                </div>
+                <button id="grid-toggle" class="option-toggle earth-only" type="button" aria-pressed="false"><span>격자</span><span class="toggle-indicator" aria-hidden="true"></span></button>
+              </div>
+              <div class="map-controls" role="group" aria-label="지도 확대">
+                <button id="zoom-in" class="icon-button" type="button" aria-label="지도 확대"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-zoom-in preview-icon" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/><line x1="11" x2="11" y1="8" y2="14"/><line x1="8" x2="14" y1="11" y2="11"/></svg></button>
+                <button id="zoom-out" class="icon-button" type="button" aria-label="지도 축소"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-zoom-out preview-icon" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/><line x1="8" x2="14" y1="11" y2="11"/></svg></button>
+                <button id="zoom-reset" type="button">전체</button>
+              </div>
+            </div>
+          </div>
         </div>
-        <div class="catalog-options">
-          <label class="status-select">운용 상태<select id="status-filter" aria-label="운용 상태 필터"><option value="ALL">전체</option><option value="active">운용 중</option><option value="retired">운용 종료</option><option value="unknown">운용 미확인</option></select></label>
-          <div class="data-actions"><button id="fetch-data" type="button">새로고침</button></div>
-        </div>
-        <div id="sat-list" class="sat-list" aria-label="위성 선택"></div>
-        <div class="sidebar-foot" id="freshness" role="status">궤도 자료 불러오는 중</div>
-      </aside>
+        <button id="catalog-toggle" class="catalog-toggle earth-only" type="button" aria-expanded="false" aria-controls="satellite-catalog">
+          <span>위성 목록</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+        <aside id="satellite-catalog" class="sidebar earth-only" aria-label="위성 목록">
+          <div class="catalog-toolbar">
+          <div class="sidebar-heading"><h2>위성 목록 <span id="mission-count">—</span></h2><p id="catalog-summary"></p></div>
+          <label class="search"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-search preview-icon" aria-hidden="true" focusable="false"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg><input id="search" type="search" aria-label="위성 검색" placeholder="위성 이름 또는 임무" autocomplete="off"><kbd>/</kbd></label>
+          <div class="filters" role="group" aria-label="궤도 종류 필터"><button type="button" data-filter="ALL" aria-pressed="true">전체</button><button type="button" data-filter="LEO" aria-pressed="false">저궤도</button><button type="button" data-filter="GEO" aria-pressed="false">정지궤도</button></div>
+          </div>
+          <div class="catalog-options">
+            <label class="status-select">운용 상태<select id="status-filter" aria-label="운용 상태 필터"><option value="ALL">전체</option><option value="active">운용 중</option><option value="retired">운용 종료</option><option value="unknown">운용 미확인</option></select></label>
+            <div class="data-actions"><button id="fetch-data" type="button">새로고침</button></div>
+          </div>
+          <div id="sat-list" class="sat-list" aria-label="위성 선택"></div>
+          <div class="sidebar-foot" id="freshness" role="status">궤도 자료 불러오는 중</div>
+        </aside>
+      </div>
     </main>
-    <footer class="site-footer">
-      <a href="/license.html">License and Usage</a>
-    </footer>
   </div>
 </body>
 </html>

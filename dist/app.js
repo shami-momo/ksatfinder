@@ -10,16 +10,20 @@ const DANURI = {
 const canvas = $('#map'), ctx = canvas.getContext('2d');
 const longitudeAxis = $('#longitude-axis'), axisCtx = longitudeAxis.getContext('2d');
 const latitudeAxis = $('#latitude-axis'), latCtx = latitudeAxis.getContext('2d');
-const styles = getComputedStyle(document.documentElement);
-const palette = Object.fromEntries(['main','main-bright','text','muted','line-soft'].map(key => [key,styles.getPropertyValue(`--${key}`).trim()]));
+function readPalette() {
+  const styles=getComputedStyle(document.documentElement);
+  return Object.fromEntries(['main','main-bright','muted','line-soft','marker-outline'].map(key=>[key,styles.getPropertyValue(`--${key}`).trim()]));
+}
+const palette=readPalette();
 const state = {
-  satellites: CATALOG.map(s => ({ ...s, elements: null })), selected: 22077,
-  hovered: null, focused: null, filter: 'ALL', status: 'ALL', query: '', view: 'earth', showGrid: false, showTrack: true,
-  playing: false, offset: 0, anchor: Date.now(), fetchedAt: null,
+  satellites: CATALOG.map((s,index) => ({ ...s, number:String(index+1).padStart(2,'0'), elements:null })), selected: 22077,
+  hovered: null, focused: null, filter: 'ALL', status: 'ALL', query: '', view: 'earth', earthMode:'2d', showGrid: false, followSelected:true,
   map: { zoom: 1, x: 0, y: 0 }
 };
-let drag;
+let drag, viewport, currentTime=new Date();
+const compact=matchMedia('(max-width:1000px)'), panels=$('.panel-layer');
 let moonView, moonData, moonPromise, moonError='', moonRetryAfter=0;
+let earthView, earthPromise, earthRetryAfter=0;
 const markerButtons = new Map();
 const positions = new Map();
 const nightCanvas=document.createElement('canvas'), nightContext=nightCanvas.getContext('2d');
@@ -27,11 +31,10 @@ nightCanvas.width=720; nightCanvas.height=360;
 let nightKey, trackCache, drawRequest;
 const timeFormatter = new Intl.DateTimeFormat('ko-KR', {timeZone:'Asia/Seoul',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false});
 const escapeHTML = value => String(value).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
-const atTime = () => new Date(state.anchor + state.offset * 60000);
 const koreanTime = date => timeFormatter.format(date);
+const clockFormatter=new Intl.DateTimeFormat('ko-KR',{timeZone:'Asia/Seoul',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'});
 const activeSats = () => state.satellites.filter(s => (state.filter === 'ALL' || s.group === state.filter) && (state.status === 'ALL' || s.status === state.status) && `${s.name} ${s.english} ${s.id} ${s.agency} ${s.description}`.toLowerCase().includes(state.query));
 const selectedSat = () => state.satellites.find(s => s.id === state.selected);
-const number = id => String(CATALOG.findIndex(s => s.id === id) + 1).padStart(2, '0');
 const color = sat => sat.status === 'retired' ? palette.muted : palette.main;
 
 function currentPosition(sat,time) {
@@ -43,24 +46,62 @@ function currentPosition(sat,time) {
   return point;
 }
 
+function getViewport() {
+  return viewport || {x:16,y:16,width:Math.max(1,$('#map-wrap').clientWidth-32),height:Math.max(1,$('#map-wrap').clientHeight-32)};
+}
+
+function flatView() {
+  const box=$('#map-wrap').getBoundingClientRect();
+  return {...state.map,width:box.height*2,height:box.height,cx:box.width/2,cy:box.height/2};
+}
+
+function updateLayout() {
+  const box=$('#map-wrap').getBoundingClientRect();
+  if (!box.width || !box.height) return;
+  let left=16, right=box.width-16;
+  if (!compact.matches) {
+    right=$('.detail-dock').getBoundingClientRect().left-box.left-16;
+    if (state.view==='earth') left=$('.sidebar').getBoundingClientRect().right-box.left+16;
+  }
+  const top=16, panelTop=compact.matches ? panels.getBoundingClientRect().top-box.top-12 : box.height;
+  const bottom=Math.min(box.height-16,panelTop);
+  viewport={x:left,y:top,width:Math.max(80,right-left),height:Math.max(80,bottom-top)};
+  $('.workspace').style.setProperty('--map-center-x',(viewport.x+viewport.width/2)+'px');
+  $('.workspace').style.setProperty('--map-center-y',(viewport.y+viewport.height/2)+'px');
+  clampMap(); draw();
+}
+
+function syncPanels() {
+  const expanded=panels.dataset.expanded==='true';
+  $('#panel-expand').setAttribute('aria-expanded',String(expanded));
+  $('#panel-expand').setAttribute('aria-label',expanded ? '위성 정보 접기' : '위성 정보 펼치기');
+  $('#detail').inert=compact.matches && !expanded;
+  const listVisible=state.view==='earth' && (!compact.matches || panels.dataset.listOpen==='true');
+  $('.sidebar').inert=!listVisible;
+  $('#catalog-toggle').setAttribute('aria-expanded',String(listVisible));
+  updateLayout();
+}
+
 function select(id) {
   state.selected = id;
+  state.followSelected=true;
+  $('#detail').scrollTop=0;
+  if (compact.matches) {
+    if ($('.sidebar').contains(document.activeElement)) $('#catalog-toggle').focus();
+    panels.dataset.listOpen='false'; panels.dataset.expanded='false'; syncPanels();
+  }
   $('#sat-list').querySelectorAll('[data-id]').forEach(button => {
-    const selected=Number(button.dataset.id)===id;
-    button.classList.toggle('selected',selected);
-    button.setAttribute('aria-pressed',String(selected));
+    button.setAttribute('aria-pressed',String(Number(button.dataset.id)===id));
   });
-  updateTime();
+  updateUI();
 }
 function renderList() {
   const scrollTop = $('#sat-list').scrollTop;
   const matches = activeSats();
-  $('#mission-count').textContent = CATALOG.length;
-  $('#catalog-summary').textContent = Object.entries(STATUS_LABELS).map(([key,label]) => `${label} ${CATALOG.filter(s => s.status === key).length}기`).join(' · ');
-  if (!matches.some(s => s.id === state.selected)) state.selected = matches[0]?.id ?? null;
+  if (!matches.some(s => s.id === state.selected)) { state.selected=matches[0]?.id ?? null; state.followSelected=true; }
   $('#sat-list').innerHTML = matches.length ? matches.map(s => {
-    return `<button class="sat-item ${s.id === state.selected ? 'selected' : ''}" type="button" data-id="${s.id}" aria-pressed="${s.id === state.selected}">
-      <span class="sat-number">${number(s.id)}</span><span class="sat-summary"><strong>${escapeHTML(s.name)}</strong><small>${escapeHTML(s.english)} · ${s.group}</small></span>
+    return `<button class="sat-item" type="button" data-id="${s.id}" aria-pressed="${s.id === state.selected}">
+      <span class="sat-number">${s.number}</span><span class="sat-summary"><strong>${escapeHTML(s.name)}</strong><small>${escapeHTML(s.english)} · ${s.group}</small></span>
       <span class="sat-state ${s.status}">${STATUS_LABELS[s.status]}</span></button>`;
   }).join('') : '<p class="empty">검색 결과가 없습니다.</p>';
   $('#sat-list').scrollTop = scrollTop;
@@ -74,15 +115,17 @@ function fillDetail(values) {
 }
 
 function renderDetail() {
-  const moon=state.view==='moon', s=moon ? DANURI : selectedSat(), time=atTime();
+  const moon=state.view==='moon', s=moon ? DANURI : selectedSat(), time=currentTime;
   detail.empty.hidden=Boolean(s);
   detail.content.hidden=!s;
+  $('#panel-name').textContent=s?.name || '선택한 위성이 없습니다.';
+  $('#panel-metric').textContent='';
   if (!s) return;
 
   fillDetail({name:s.name,english:s.english,group:s.group,agency:s.agency,launched:s.launched,vehicle:s.vehicle,site:s.site,description:s.description,status:STATUS_LABELS[s.status]});
   detail.status.hidden=moon;
-  const statusClass='sat-state '+(s.status || '');
-  if (detail.status.className!==statusClass) detail.status.className=statusClass;
+  const statusClass='sat-state '+(s.status==='active' ? 'active' : 'unknown');
+  for (const key of ['status','group','agency']) if (detail[key].className!==statusClass) detail[key].className=statusClass;
   detail.agency.hidden=!s.agency?.trim();
   detail.launched.dateTime=s.launched;
   for (const key of ['vehicle','site']) {
@@ -94,10 +137,12 @@ function renderDetail() {
   detail.moonGrid.hidden=!moon || !p;
   detail.noData.hidden=Boolean(p);
   if (!p) {
+    $('#panel-metric').textContent='궤도 자료 없음';
     fillDetail({noData:moon ? moonError || (moonData ? '선택한 시각의 궤적 자료가 없습니다.' : '다누리 궤적을 불러오는 중입니다.') : '사용할 수 있는 궤도 자료가 없습니다.'});
     return;
   }
 
+  $('#panel-metric').textContent=`고도 ${Math.round(p.altitude).toLocaleString('ko-KR')} km · ${moon ? '달 궤도' : s.group}`;
   const coordinate=(value,positive,negative)=>`${Math.abs(value).toFixed(2)}° ${value>=0 ? positive : negative}`;
   if (moon) {
     const elapsedDays=Math.max(0,(Number(time)-LUNAR_ORBIT_INSERTION)/86400000);
@@ -116,6 +161,23 @@ function renderDetail() {
   }
 }
 
+async function loadEarth() {
+  if (earthView || earthPromise || Date.now()<earthRetryAfter) return earthPromise;
+  const message=$('#earth-message');
+  message.hidden=false; message.textContent='3D 지구를 불러오는 중';
+  earthPromise=(async()=>{
+    try {
+      const {createEarth}=await import('./earth.js');
+      earthView=await createEarth($('#earth-scene'),$('#earth-label'),$('#earth-hover'),select,getViewport);
+      message.hidden=true;
+    } catch (error) {
+      message.textContent='3D 지구 불러오기 실패 · '+(error.name==='TimeoutError' ? '이미지 응답 시간 초과' : error.message);
+      earthRetryAfter=Date.now()+60000;
+    } finally { earthPromise=null; draw(); }
+  })();
+  return earthPromise;
+}
+
 async function loadMoon() {
   if (moonPromise || Date.now()<moonRetryAfter) return moonPromise;
   moonError='';
@@ -125,7 +187,7 @@ async function loadMoon() {
     let loadingTimer;
     try {
       const scene=moonView ? Promise.resolve(moonView) : import('./moon.js').then(({createMoon})=>createMoon($('#moon-scene'),$('#moon-label'))).then(view=>{moonView=view;return view;});
-      const trajectory=fetch('/api/danuri',{signal:AbortSignal.timeout(25000)}).then(async response=>{
+      const trajectory=fetch('/api/danuri',{cache:'no-store',signal:AbortSignal.timeout(25000)}).then(async response=>{
         const data=await response.json();
         if (!response.ok || data.error) throw new Error(data.error || '다누리 자료 서버 HTTP '+response.status);
         if (data.frame!=='MOON_ME' || !Array.isArray(data.points) || data.points.length<2) throw new Error('다누리 궤적 형식이 올바르지 않습니다.');
@@ -145,7 +207,7 @@ async function loadMoon() {
       moonRetryAfter=Date.now()+60000;
       $('#moon-message').hidden=false;
       $('#moon-message').textContent=moonError;
-    } finally { clearTimeout(loadingTimer); moonPromise=null; updateTime(); }
+    } finally { clearTimeout(loadingTimer); moonPromise=null; updateUI(); }
   })();
   return moonPromise;
 }
@@ -161,46 +223,55 @@ function sizeCanvas() {
 
 async function loadWorld() {
   try {
-    await $('#world-map').decode();
+    const image=new Image(); image.src='/world.svg';
+    await image.decode();
     $('#map-message').hidden = true;
     draw();
   } catch { $('#map-message').textContent = '지도 파일을 불러오지 못했습니다. 새로고침해 주세요.'; }
 }
 
-function drawGrid(w, h) {
-  ctx.strokeStyle = palette['line-soft']; ctx.lineWidth = .7;
-  ctx.font = '12px Pretendard'; ctx.fillStyle = palette.muted;
-  const step = state.map.zoom < 2 ? 30 : state.map.zoom < 4 ? 10 : 5;
-  for (let lon = -180; lon <= 180; lon += step) {
-    const { x } = project(lon, 0, w, h, state.map);
-    if (x < 0 || x > w) continue;
-    ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,h); ctx.stroke();
-    if (x > 25 && x < w - 25) {
-      axisCtx.beginPath(); axisCtx.moveTo(x,0); axisCtx.lineTo(x,5); axisCtx.stroke();
-      axisCtx.fillText(`${Math.abs(lon)}°${lon > 0 ? 'E' : lon < 0 ? 'W' : ''}`, x,20);
+function worldTiles(view,screenWidth) {
+  const width=view.width*view.zoom, start=project(-180,90,view), tiles=[];
+  const first=start.x-Math.ceil(start.x/width)*width;
+  for (let x=first;x<screenWidth;x+=width) tiles.push({x,y:start.y});
+  return tiles;
+}
+
+function drawGrid(w,h,view) {
+  const start=project(-180,90,view), end=project(180,-90,view), width=view.width*view.zoom;
+  ctx.strokeStyle=palette['line-soft']; ctx.lineWidth=.7;
+  const step=view.zoom<2 ? 30 : view.zoom<4 ? 10 : 5;
+  for (const tile of worldTiles(view,w)) {
+    for (let lon=-180;lon<180;lon+=step) {
+      const x=tile.x+(lon+180)/360*width;
+      if (x<0 || x>w) continue;
+      ctx.beginPath(); ctx.moveTo(x,start.y); ctx.lineTo(x,end.y); ctx.stroke();
+      if (x>25 && x<w-25) {
+        axisCtx.beginPath(); axisCtx.moveTo(x,0); axisCtx.lineTo(x,5); axisCtx.stroke();
+        axisCtx.fillText(`${Math.abs(lon)}°${lon>0 ? 'E' : lon<0 ? 'W' : ''}`,x,20);
+      }
     }
   }
-  for (let lat = -90; lat <= 90; lat += step) {
-    const { y } = project(0,lat,w,h,state.map);
-    if (y < 10 || y > h - 10) continue;
+  for (let lat=-90;lat<=90;lat+=step) {
+    const {y}=project(0,lat,view);
+    if (y<10 || y>h-10) continue;
     ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(w,y); ctx.stroke();
     latCtx.beginPath(); latCtx.moveTo(37,y); latCtx.lineTo(42,y); latCtx.stroke();
-    latCtx.fillText(`${Math.abs(lat)}°${lat > 0 ? 'N' : lat < 0 ? 'S' : ''}`, 34,y);
+    latCtx.fillText(`${Math.abs(lat)}°${lat>0 ? 'N' : lat<0 ? 'S' : ''}`,34,y);
   }
 }
 
-function drawNight(w,h,time) {
+function drawNight(w,h,time,view) {
   const key=Math.floor(Number(time)/15000);
   if (nightKey!==key) {
     const {pixels,width,height}=nightMask(time);
     nightContext.putImageData(new ImageData(pixels,width,height),0,0);
     nightKey=key;
   }
-  const {zoom,x,y}=state.map;
-  ctx.drawImage(nightCanvas,x-(zoom-1)*w/2,y-(zoom-1)*h/2,w*zoom,h*zoom);
+  for (const {x,y} of worldTiles(view,w)) ctx.drawImage(nightCanvas,x,y,view.width*view.zoom,view.height*view.zoom);
 }
 
-function drawTrack(sat, time, w, h) {
+function drawTrack(sat, time, w, h, view) {
   if (!sat.elements) return;
   const second=Math.floor(Number(time)/1000);
   if (trackCache?.second!==second || trackCache.elements!==sat.elements) {
@@ -208,20 +279,23 @@ function drawTrack(sat, time, w, h) {
     const tracks=[-1,1].map(sign=>Array.from({length:161},(_,i)=>position(sat,new Date(Number(time)+sign*i/160*span*60000))));
     trackCache={second,elements:sat.elements,tracks};
   }
-  const width = w * state.map.zoom;
-  ctx.save(); ctx.translate(state.map.x - (state.map.zoom - 1) * w / 2, state.map.y - (state.map.zoom - 1) * h / 2);
+  const width=view.width*view.zoom, tiles=worldTiles(view,w);
   for (const [index,track] of trackCache.tracks.entries()) {
     const future=index===1;
-    const samples=track.map(p=>p ? {x:(p.lon+180)/360*width,y:(90-p.lat)/180*h*state.map.zoom} : null);
-    ctx.strokeStyle = future ? palette['main-bright'] : palette.main; ctx.lineWidth = 2; ctx.setLineDash(future ? [5,4] : []);
-    for (const segment of wrapTrack(samples,width)) {
-      if (segment.length < 2) continue;
-      ctx.beginPath(); ctx.moveTo(segment[0].x,segment[0].y);
-      for (const p of segment.slice(1)) ctx.lineTo(p.x,p.y);
-      ctx.stroke();
+    const samples=track.map(p=>p ? {x:(p.lon+180)/360*width,y:(90-p.lat)/180*view.height*view.zoom} : null);
+    const segments=wrapTrack(samples,width);
+    for (const tile of tiles) {
+      ctx.save(); ctx.translate(tile.x,tile.y);
+      ctx.strokeStyle=future ? palette['main-bright'] : palette.main; ctx.lineWidth=2; ctx.setLineDash(future ? [5,4] : []);
+      for (const segment of segments) {
+        if (segment.length<2) continue;
+        ctx.beginPath(); ctx.moveTo(segment[0].x,segment[0].y);
+        for (const p of segment.slice(1)) ctx.lineTo(p.x,p.y);
+        ctx.stroke();
+      }
+      ctx.restore();
     }
   }
-  ctx.restore();
 }
 
 function draw() {
@@ -231,13 +305,31 @@ function draw() {
 
 function renderMap() {
   if (state.view === 'moon') {
-    moonView?.update(atTime(),state.showTrack);
+    moonView?.update(currentTime);
     if (!moonView || !moonData || Date.now()-Date.parse(moonData.fetchedAt)>=86400000) loadMoon();
+    return;
+  }
+  if (state.earthMode==='3d') {
+    if (!earthView) loadEarth();
+    else {
+      const time=currentTime;
+      const points=activeSats().flatMap(sat=>{
+        const point=currentPosition(sat,time);
+        return point ? [{sat,point}] : [];
+      });
+      earthView.update(points,time,state.selected,state.showGrid);
+    }
     return;
   }
   const size=sizeCanvas();
   if (!size) return;
-  const {w,h}=size, time=atTime(), visible=activeSats();
+  const {w,h}=size, time=currentTime, visible=activeSats(), chosen=selectedSat();
+  let view=flatView();
+  const target=state.followSelected ? currentPosition(chosen,time) : null;
+  if (target) {
+    state.map.x=-target.lon/360*view.width*view.zoom;
+    clampMap(); view=flatView();
+  }
   ctx.clearRect(0,0,w,h);
   const axisScale = canvas.width/w;
   if (longitudeAxis.width!==canvas.width) longitudeAxis.width=canvas.width;
@@ -250,28 +342,33 @@ function renderMap() {
   latCtx.setTransform(axisScale,0,0,axisScale,0,0);
   latCtx.clearRect(0,0,42,h);
   latCtx.font = '11px Pretendard'; latCtx.textAlign = 'right'; latCtx.textBaseline = 'middle'; latCtx.fillStyle = palette.muted; latCtx.strokeStyle = palette['line-soft'];
-  $('#world-map').style.transform = `translate(${state.map.x}px,${state.map.y}px) scale(${state.map.zoom})`;
-  drawNight(w,h,time);
-  if (state.showGrid) drawGrid(w,h);
-  const chosen = selectedSat();
-  if (chosen && state.showTrack) drawTrack(chosen,time,w,h);
+  const start=project(-180,90,view);
+  Object.assign($('#world-map').style,{backgroundPosition:`${start.x}px ${start.y}px`,backgroundSize:`${view.width*view.zoom}px ${view.height*view.zoom}px`});
+  drawNight(w,h,time,view);
+  if (state.showGrid) drawGrid(w,h,view);
+  if (chosen) drawTrack(chosen,time,w,h,view);
   const points = visible.flatMap(sat => {
     const p = currentPosition(sat,time);
     if (!p) return [];
-    const selected = sat.id===state.selected;
-    return [{ ...project(p.lon,p.lat,w,h,state.map), sat, selected }];
+    const selected=sat.id===state.selected, point=project(p.lon,p.lat,view), width=view.width*view.zoom;
+    const copies=[], first=-Math.floor(point.x/width);
+    for (let copy=first;point.x+copy*width<w;copy++) {
+      const x=point.x+copy*width;
+      if (x>=0) copies.push({...point,x,sat,selected,key:sat.id+':'+copy});
+    }
+    return copies;
   });
   const markers = points.filter(p => p.x >= 0 && p.x <= w && p.y >= 0 && p.y <= h);
-  const named = markers.filter(p => p.selected || p.sat.id === state.hovered || p.sat.id === state.focused);
+  const named=markers.filter(p=>(p.selected && Math.abs(p.x-w/2)<=view.width*view.zoom/2) || p.key===state.hovered || p.key===state.focused);
   for (const point of named) {
     ctx.font=point.selected ? '500 12px Pretendard' : '500 10px Pretendard';
     point.labelWidth=Math.ceil(ctx.measureText(point.sat.name).width)+12;
   }
   const dots = markers.map(p => ({x:p.x-4,y:p.y-4,width:8,height:8,weight:1}));
-  const labels = new Map(layoutMarkers(named,w,h,dots).map(p => [p.sat.id,p.label]));
+  const labels = new Map(layoutMarkers(named,w,h,dots).map(p => [p.key,p.label]));
   const markerIds = new Set();
-  for (const { x,y,sat,selected } of [...markers].sort((a,b) => Number(a.selected)-Number(b.selected))) {
-    const label = labels.get(sat.id);
+  for (const { x,y,sat,selected,key } of [...markers].sort((a,b) => Number(a.selected)-Number(b.selected))) {
+    const label = labels.get(key);
     if (label) {
       const edgeX = Math.max(label.x,Math.min(label.x+label.width,x));
       const edgeY = Math.max(label.y,Math.min(label.y+label.height,y));
@@ -280,27 +377,27 @@ function renderMap() {
     }
     ctx.fillStyle = selected ? palette.main : color(sat);
     ctx.beginPath(); ctx.arc(x,y,selected ? 3.5 : 2.2,0,Math.PI*2); ctx.fill();
-    ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.stroke();
-    markerIds.add(sat.id);
-    let button = markerButtons.get(sat.id);
+    ctx.strokeStyle = palette['marker-outline']; ctx.lineWidth = 1; ctx.stroke();
+    markerIds.add(key);
+    let button = markerButtons.get(key);
     if (!button) {
       button = document.createElement('button'); button.type = 'button';
       const name = document.createElement('span'); name.className = 'map-marker-label'; name.setAttribute('aria-hidden','true');
+      name.textContent = sat.name;
+      button.setAttribute('aria-label',sat.name);
       button.append(name);
       button.addEventListener('click',() => select(sat.id));
-      button.addEventListener('pointerenter',event => { if (event.pointerType !== 'touch') { state.hovered = sat.id; draw(); } });
-      button.addEventListener('pointerleave',() => { if (state.hovered === sat.id) { state.hovered = null; draw(); } });
-      button.addEventListener('focus',() => { state.focused = sat.id; draw(); });
-      button.addEventListener('blur',() => { if (state.focused === sat.id) { state.focused = null; draw(); } });
-      $('#map-markers').append(button); markerButtons.set(sat.id,button);
+      button.addEventListener('pointerenter',event => { if (event.pointerType !== 'touch') { state.hovered = key; draw(); } });
+      button.addEventListener('pointerleave',() => { if (state.hovered === key) { state.hovered = null; draw(); } });
+      button.addEventListener('focus',() => { state.focused = key; draw(); });
+      button.addEventListener('blur',() => { if (state.focused === key) { state.focused = null; draw(); } });
+      $('#map-markers').append(button); markerButtons.set(key,button);
     }
-    button.className = 'map-marker' + (selected ? ' selected' : '') + (label ? ' named' : '');
-    button.setAttribute('aria-label',sat.name);
+    button.className = 'map-marker' + (label ? ' named' : '');
     button.setAttribute('aria-pressed',String(selected));
     button.style.left = (x-8) + 'px'; button.style.top = (y-8) + 'px';
     button.style.setProperty('--marker-color',selected ? palette.main : color(sat));
     const name = button.firstElementChild;
-    name.textContent = sat.name;
     if (label) {
       name.style.left = (label.x-x+8) + 'px'; name.style.top = (label.y-y+8) + 'px'; name.style.width = label.width + 'px';
     }
@@ -310,58 +407,65 @@ function renderMap() {
     if (state.focused === id) state.focused = null;
     button.remove(); markerButtons.delete(id);
   }
-  const coverage = `위치 ${points.length}/${visible.length}기`;
-  canvas.setAttribute('aria-label',`위성 위치 지도. ${points.map(p => p.sat.name).join(', ')}. ${coverage}`);
+  const names=[...new Set(points.map(p=>p.sat.name))];
+  const coverage=`위치 ${new Set(points.map(p=>p.sat.id)).size}/${visible.length}기`;
+  canvas.setAttribute('aria-label',`위성 위치 지도. ${names.join(', ')}. ${coverage}`);
 }
 
-function updateTime() {
-  const time = atTime();
-  $('#time-label').textContent = `${koreanTime(time)} KST${state.offset ? ` · ${state.offset > 0 ? '+' : ''}${state.offset}분` : ' · 현재'}`;
-  $('#play-button').setAttribute('aria-pressed',String(state.playing));
-  $('#play-button').setAttribute('aria-label',state.playing ? '시간 일시정지' : '시간 재생');
+let clockTimer;
+function updateClock() {
+  clearTimeout(clockTimer);
+  if (document.hidden) return;
+  const now=new Date();
+  $('#clock').textContent=clockFormatter.format(now);
+  $('#clock').dateTime=now.toISOString();
+  clockTimer=setTimeout(updateClock,1000-Date.now()%1000);
+}
+
+function updateUI() {
+  currentTime=new Date();
   renderDetail(); draw();
 }
 
 function setView(view) {
   state.view = view;
-  document.querySelectorAll('[data-view]').forEach(b => { b.classList.toggle('active',b.dataset.view === view); b.setAttribute('aria-pressed',String(b.dataset.view === view)); });
+  const globe=view==='earth' && state.earthMode==='3d';
+  document.querySelectorAll('[data-view]').forEach(b => b.setAttribute('aria-pressed',String(b.dataset.view === view)));
   $('#moon-panel').hidden = view !== 'moon';
-  $('.map-frame').classList.toggle('axes-hidden',view !== 'earth' || !state.showGrid);
+  $('#earth-panel').hidden = !globe;
+  $('.map-frame').classList.toggle('axes-hidden',view !== 'earth' || globe || !state.showGrid);
   $('.workspace').classList.toggle('moon-active',view === 'moon');
-  if (view === 'moon' && !moonData) loadMoon();
-  updateTime();
+  $('.workspace').classList.toggle('globe-active',globe);
+  syncPanels(); updateUI();
 }
 
 function updateSource(message) {
-  const count = state.satellites.filter(s => s.elements).length;
-  $('#freshness').textContent = message || (count ? `자료 수신 ${koreanTime(new Date(state.fetchedAt))} KST` : '궤도 자료가 있는 위성만 지도에 표시합니다.');
-  updateTime();
+  $('#freshness').textContent = message;
+  updateUI();
 }
 
-function applyElements(rows,fetchedAt) {
+function applyElements(rows) {
   const valid = parseElements(rows);
   if (!valid.size) throw new Error('최근 7일 이내의 유효한 궤도 자료가 없습니다');
   state.satellites = state.satellites.map(s => valid.has(s.id) ? { ...s,elements:valid.get(s.id),record:null } : s);
-  state.fetchedAt = Number.isFinite(Date.parse(fetchedAt)) ? fetchedAt : new Date().toISOString();
 }
 
 async function connectPublic(force=false) {
   const button = $('#fetch-data'); button.disabled = true; button.textContent = '불러오는 중';
   state.satellites = state.satellites.map(s => ({...s,elements:null,record:null}));
-  state.fetchedAt = null;
   updateSource('궤도 자료 불러오는 중');
   let finalData;
   const receive = data => {
     if (data.error) throw new Error(data.error);
     if (data.elements?.length) {
-      try { applyElements(data.elements,data.fetchedAt); }
+      try { applyElements(data.elements); }
       catch { if (data.done) throw new Error('유효한 궤도 자료가 없습니다'); }
     }
     if (!data.done) updateSource('궤도 자료 갱신 중 · 받은 자료부터 표시합니다.');
-    else { finalData = data; updateTime(); }
+    else finalData = data;
   };
   try {
-    const response = await fetch('/api/catalog'+(force ? '?stream=1&refresh=1' : ''),{signal:AbortSignal.timeout(35000)});
+    const response = await fetch('/api/catalog'+(force ? '?stream=1&refresh=1' : ''),{cache:'no-store',signal:AbortSignal.timeout(35000)});
     if (!response.ok) throw new Error('자료 서버 HTTP ' + response.status);
     if (force) {
       let buffer='';
@@ -375,26 +479,45 @@ async function connectPublic(force=false) {
     if (!finalData) throw new Error('자료 갱신이 완료되지 않았습니다');
 
     const message = finalData.warnings?.join(' · ');
-    updateSource(message || ('자료 수신 ' + koreanTime(new Date(finalData.fetchedAt)) + ' KST · 24시간마다 갱신' + (finalData.unavailable?.length ? ' · 자료 없음 ' + finalData.unavailable.length + '기' : '')));
+    updateSource(message || ('갱신 : ' + koreanTime(new Date(finalData.fetchedAt)) + ' KST' + (finalData.unavailable?.length ? ' · 자료 없음 ' + finalData.unavailable.length + '기' : '')));
   } catch (error) { updateSource('자료 갱신 실패 · ' + (error.name === 'TimeoutError' ? '응답 시간 초과' : error.message)); }
   finally { button.disabled = false; button.textContent = '새로고침'; }
 }
 
 function clampMap() {
-  const { width,height } = canvas.getBoundingClientRect();
-  state.map.x = Math.max(-width*(state.map.zoom-1)/2,Math.min(width*(state.map.zoom-1)/2,state.map.x));
-  state.map.y = Math.max(-height*(state.map.zoom-1)/2,Math.min(height*(state.map.zoom-1)/2,state.map.y));
+  const view=flatView(), width=view.width*view.zoom;
+  if (width) state.map.x=((state.map.x+width/2)%width+width)%width-width/2;
+  const limitY=view.height*(view.zoom-1)/2;
+  state.map.y=Math.max(-limitY,Math.min(limitY,state.map.y));
 }
-function zoom(factor) {
+function zoom(factor,clientX,clientY) {
   if (state.view === 'moon') { moonView?.zoom(factor); return; }
-  const old = state.map.zoom;
-  state.map.zoom = Math.max(1,Math.min(8,old*factor));
-  state.map.x *= state.map.zoom/old; state.map.y *= state.map.zoom/old;
+  if (state.earthMode === '3d') { earthView?.zoom(factor); return; }
+  const old=state.map.zoom, next=Math.max(1,Math.min(8,old*factor));
+  if (next===old) return;
+  state.map.zoom=next;
+  if (clientX!==undefined) {
+    const box=canvas.getBoundingClientRect(), offsetX=clientX-box.left-box.width/2, offsetY=clientY-box.top-box.height/2;
+    state.map.x=offsetX+(state.map.x-offsetX)*next/old;
+    state.map.y=offsetY+(state.map.y-offsetY)*next/old;
+    state.followSelected=false;
+  } else { state.map.x*=next/old; state.map.y*=next/old; }
   clampMap(); draw();
 }
+$('#map-wrap').addEventListener('wheel',event=>{
+  if (state.view!=='earth' || state.earthMode!=='2d' || !event.deltaY) return;
+  event.preventDefault();
+  const unit=event.deltaMode===1 ? 16 : event.deltaMode===2 ? canvas.clientHeight : 1;
+  const delta=Math.max(-200,Math.min(200,event.deltaY*unit));
+  zoom(Math.exp(-delta*.002),event.clientX,event.clientY);
+},{passive:false});
 $('#zoom-in').addEventListener('click',() => zoom(1.5));
 $('#zoom-out').addEventListener('click',() => zoom(1/1.5));
-$('#zoom-reset').addEventListener('click',() => { if (state.view === 'moon') moonView?.reset(); else { state.map = { zoom:1,x:0,y:0 }; draw(); } });
+$('#zoom-reset').addEventListener('click',() => {
+  if (state.view==='moon') moonView?.reset();
+  else if (state.earthMode==='3d') earthView?.reset();
+  else { state.map={zoom:1,x:0,y:0}; state.followSelected=true; draw(); }
+});
 canvas.addEventListener('pointerdown',event => {
   if (event.button !== 0) return;
   drag = { pointer:event.pointerId,x:event.clientX,y:event.clientY,startX:state.map.x,startY:state.map.y,moved:false };
@@ -402,44 +525,61 @@ canvas.addEventListener('pointerdown',event => {
 });
 canvas.addEventListener('pointermove',event => {
   if (!drag || event.pointerId !== drag.pointer) return;
-  const dx = event.clientX-drag.x, dy = event.clientY-drag.y;
-  if (Math.hypot(dx,dy) > 4) drag.moved = true;
-  if (drag.moved) { state.map.x = drag.startX+dx; state.map.y = drag.startY+dy; clampMap(); draw(); }
+  const dx=event.clientX-drag.x, dy=event.clientY-drag.y;
+  if (Math.hypot(dx,state.map.zoom>1 ? dy : 0)>4) drag.moved=true;
+  if (drag.moved) { state.followSelected=false; state.map.x=drag.startX+dx; state.map.y=drag.startY+dy; clampMap(); draw(); }
 });
 canvas.addEventListener('pointerup',event => {
   if (!drag || event.pointerId !== drag.pointer) return;
   drag = null;
 });
 canvas.addEventListener('pointercancel',() => { drag = null; });
-$('#search').addEventListener('input',event => { state.query = event.target.value.trim().toLowerCase(); renderList(); updateTime(); });
+$('#search').addEventListener('input',event => { state.query = event.target.value.trim().toLowerCase(); renderList(); updateUI(); });
 $('#sat-list').addEventListener('click',event => {
   const button=event.target.closest('[data-id]');
   if (button) select(Number(button.dataset.id));
 });
-$('#status-filter').addEventListener('change',event => { state.status = event.target.value; renderList(); updateTime(); });
+$('#status-filter').addEventListener('change',event => { state.status = event.target.value; renderList(); updateUI(); });
 document.querySelectorAll('[data-filter]').forEach(b => b.addEventListener('click',() => {
   state.filter = b.dataset.filter;
-  document.querySelectorAll('[data-filter]').forEach(x => { x.classList.toggle('active',x === b); x.setAttribute('aria-pressed',String(x === b)); });
-  renderList(); updateTime();
+  document.querySelectorAll('[data-filter]').forEach(x => x.setAttribute('aria-pressed',String(x === b)));
+  renderList(); updateUI();
 }));
 document.querySelectorAll('[data-view]').forEach(b => b.addEventListener('click',() => setView(b.dataset.view)));
-for (const [id,key] of [['grid-toggle','showGrid'],['track-toggle','showTrack']]) {
-  $(`#${id}`).addEventListener('click',event => { state[key] = !state[key]; event.currentTarget.classList.toggle('active',state[key]); event.currentTarget.setAttribute('aria-pressed',String(state[key])); $('.map-frame').classList.toggle('axes-hidden',state.view === 'moon' || !state.showGrid); clampMap(); draw(); });
-}
-$('#time-range').addEventListener('input',event => { state.offset = Number(event.target.value); state.playing = false; updateTime(); });
-$('#now-button').addEventListener('click',() => { state.anchor = Date.now(); state.offset = 0; state.playing = false; $('#time-range').value = 0; updateTime(); });
-$('#play-button').addEventListener('click',() => { state.playing = !state.playing; updateTime(); });
-$('#fetch-data').addEventListener('click',() => connectPublic(true));
-new ResizeObserver(()=>{clampMap(); draw();}).observe($('#map-wrap'));
-window.addEventListener('keydown',event => { if (state.view === 'earth' && event.key === '/' && !['INPUT','TEXTAREA'].includes(document.activeElement.tagName)) { event.preventDefault(); $('#search').focus(); } });
-setInterval(() => {
-  if (document.hidden) return;
-  if (state.playing) { state.offset = state.offset >= 90 ? -90 : state.offset+1; $('#time-range').value = state.offset; }
-  if (!state.offset && !state.playing) state.anchor = Date.now();
-  updateTime();
-},1000);
-document.addEventListener('visibilitychange',()=>{
-  if (!document.hidden) { if (!state.offset && !state.playing) state.anchor=Date.now(); updateTime(); }
+document.querySelectorAll('[data-earth-mode]').forEach(button=>button.addEventListener('click',()=>{
+  state.earthMode=button.dataset.earthMode;
+  document.querySelectorAll('[data-earth-mode]').forEach(item=>item.setAttribute('aria-pressed',String(item===button)));
+  setView('earth');
+}));
+$('#grid-toggle').addEventListener('click',event=>{
+  state.showGrid=!state.showGrid;
+  event.currentTarget.setAttribute('aria-pressed',String(state.showGrid));
+  setView(state.view);
 });
-renderList(); updateSource(); loadWorld(); connectPublic();
+$('#fetch-data').addEventListener('click',() => connectPublic(true));
+const layoutObserver=new ResizeObserver(updateLayout);
+for (const element of [$('#map-wrap'),panels,$('#detail'),$('.sidebar'),$('.detail-dock'),$('.control-panel')]) layoutObserver.observe(element);
+compact.addEventListener('change',syncPanels);
+$('#catalog-toggle').addEventListener('click',()=>{
+  panels.dataset.listOpen=String(panels.dataset.listOpen!=='true');
+  syncPanels();
+});
+$('#panel-expand').addEventListener('click',()=>{
+  panels.dataset.expanded=String(panels.dataset.expanded!=='true');
+  syncPanels();
+});
+window.addEventListener('keydown',event=>{
+  if (event.key==='Escape' && compact.matches && (panels.dataset.expanded==='true' || panels.dataset.listOpen==='true')) {
+    $(panels.dataset.listOpen==='true' ? '#catalog-toggle' : '#panel-expand').focus();
+    panels.dataset.listOpen='false'; panels.dataset.expanded='false'; syncPanels();
+  }
+  if (state.view==='earth' && event.key==='/' && !['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName)) {
+    event.preventDefault(); panels.dataset.listOpen='true'; syncPanels(); $('.sidebar').scrollTop=0; $('#search').focus();
+  }
+});
+setInterval(()=>{ if (!document.hidden) updateUI(); },1000);
+document.addEventListener('visibilitychange',()=>{ updateClock(); if (!document.hidden) updateUI(); });
+$('#mission-count').textContent = CATALOG.length;
+$('#catalog-summary').textContent = Object.entries(STATUS_LABELS).map(([key,label]) => `${label} ${CATALOG.filter(s => s.status === key).length}`).join(' · ');
+updateClock(); syncPanels(); renderList(); loadWorld(); connectPublic();
 document.fonts.ready.then(draw);

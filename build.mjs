@@ -20,6 +20,8 @@ if (domain) {
 const files={
   'node_modules/satellite.js/dist/satellite.es.js':'dist/vendor/satellite.es.js',
   'node_modules/three/build/three.module.js':'dist/vendor/three.module.js',
+  'node_modules/three/build/three.webgpu.js':'dist/vendor/three.webgpu.js',
+  'node_modules/three/build/three.tsl.js':'dist/vendor/three.tsl.js',
   'node_modules/three/build/three.core.js':'dist/vendor/three.core.js',
   'node_modules/three/examples/jsm/controls/OrbitControls.js':'dist/vendor/OrbitControls.js',
   'node_modules/satellite.js/LICENSE.md':'dist/licenses/satellite-LICENSE.txt',
