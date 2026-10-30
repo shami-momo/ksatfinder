@@ -110,7 +110,7 @@ export async function createEarth(container,label,hoverLabel,onSelect,getViewpor
 
   const gridGeometry=new THREE.BufferGeometry();
   gridGeometry.setAttribute('position',new THREE.Float32BufferAttribute(sphereGridVertices(),3));
-  const grid=new THREE.LineSegments(gridGeometry,new THREE.LineBasicMaterial({color:retiredColor,transparent:true,opacity:.35}));
+  const grid=new THREE.LineSegments(gridGeometry,new THREE.LineBasicMaterial({color:retiredColor,transparent:true,opacity:.15}));
   scene.add(grid);
   const launchMarkers=LAUNCH_SITES.map(site=>{
     const lon=site.lon*Math.PI/180, lat=site.lat*Math.PI/180;

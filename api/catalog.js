@@ -44,13 +44,16 @@ async function catalog(onProgress, {force=false} = {}) {
       const elements=[...parseElements(saved.elements).values()];
       if (elements.length) {
         const available=new Set(elements.map(row=>Number(row.NORAD_CAT_ID)));
-        const data={...saved,elements,unavailable:ids.filter(id=>!available.has(id)),done:true};
+        const data={...saved,elements,unavailable:ids.filter(id=>!available.has(id)),done:true,delivery:process.env.VERCEL ? 'vercel-cache' : 'local-cache'};
         onProgress?.(data);
         return data;
       }
     }
   }
-  if (onProgress) listeners.add(onProgress);
+  if (onProgress) {
+    listeners.add(onProgress);
+    onProgress({delivery:'upstream',done:false});
+  }
   if (!pending) pending = (async () => {
     const signal = AbortSignal.timeout(30000);
     const elements = new Map();
@@ -67,7 +70,7 @@ async function catalog(onProgress, {force=false} = {}) {
       ...(errors.length ? {warnings:[...new Set(errors)]} : {})});
     const publish = () => {
       if (!listeners.size) return;
-      const data = snapshot(false);
+      const data = {...snapshot(false),delivery:'upstream'};
       for (const listener of listeners) listener(data);
     };
     try {
@@ -94,8 +97,9 @@ async function catalog(onProgress, {force=false} = {}) {
     if (!elements.size) throw new Error(errors[0] || '최근 7일 이내의 궤도자료가 없습니다.');
     const data = snapshot(true);
     await writeDailyCache('orbits',data);
-    for (const listener of listeners) listener(data);
-    return data;
+    const result={...data,delivery:'upstream'};
+    for (const listener of listeners) listener(result);
+    return result;
   })().finally(() => { pending = null; });
   try { return await pending; }
   finally { if (onProgress) listeners.delete(onProgress); }

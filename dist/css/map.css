@@ -1,0 +1,297 @@
+.explorer {
+  height: 100vh;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.explorer .site-header {
+  flex-shrink: 0;
+  z-index: 10;
+}
+
+.explorer .header-inner {
+  flex-wrap: wrap;
+  max-width: none;
+  min-height: 64px;
+  padding: var(--space-2) var(--space-5);
+}
+
+.explorer .shell {
+  --catalog-width: 320px;
+  position: relative;
+  flex: 1;
+  width: 100%;
+  max-width: none;
+  min-height: 0;
+  display: flex;
+}
+
+.workspace {
+  --detail-width: 360px;
+  isolation: isolate;
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.stage {
+  --inner-radius: var(--radius-sm);
+  position: absolute;
+  inset: 0;
+}
+
+.map-frame {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+.map-wrap {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+  background: var(--map-bg);
+}
+
+.world-map {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: url('/textures/earth_day_4096.jpg');
+  background-repeat: repeat-x;
+}
+
+.map-wrap canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: grab;
+  touch-action: none;
+}
+
+.map-wrap canvas:active {
+  cursor: grabbing;
+}
+
+.map-markers {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.map-marker {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--marker-color);
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.map-marker:hover {
+  background: transparent;
+}
+
+.map-marker.named {
+  z-index: 2;
+}
+
+.map-marker[aria-pressed="true"] {
+  z-index: 3;
+}
+
+.map-marker:focus-visible {
+  outline: 2px solid var(--main);
+  outline-offset: 1px;
+}
+
+.map-marker-label {
+  display: none;
+  position: absolute;
+  box-sizing: border-box;
+  height: 18px;
+  padding: 0 5px;
+  border: 1px solid color-mix(in srgb,var(--marker-color) 30%,transparent);
+  border-radius: 3px;
+  background: var(--label-bg);
+  color: var(--marker-color);
+  font: 500 10px var(--font-ui);
+  line-height: 16px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.map-marker.named .map-marker-label {
+  display: block;
+}
+
+.map-marker[aria-pressed="true"] .map-marker-label {
+  height: 24px;
+  border-color: var(--main);
+  border-radius: 4px;
+  background: var(--main);
+  color: var(--on-main);
+  font-size: 12px;
+  line-height: 22px;
+}
+
+.map-message {
+  position: absolute;
+  top: var(--map-center-y,50%);
+  left: var(--map-center-x,50%);
+  max-width: calc(100% - var(--space-6));
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  transform: translate(-50%,-50%);
+  background: var(--bg);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--inner-radius);
+  box-shadow: var(--shadow-sm);
+  color: var(--muted);
+  font-size: 14px;
+  text-align: center;
+}
+
+.moon-active .earth-only, .workspace:not(.moon-active) .moon-only, .globe-active .flat-only, .workspace:not(.globe-active) .globe-only {
+  display: none;
+}
+
+.space-panel {
+  --space-bg: #111;
+  position: absolute;
+  inset: 0;
+  background: var(--space-bg);
+  z-index: 4;
+}
+
+.space-scene {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.space-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.space-label {
+  position: absolute;
+  z-index: 1;
+  transform: translate(10px,-50%);
+  padding: 2px 7px;
+  border: 1px solid var(--main-softer);
+  border-radius: var(--radius-sm);
+  background: var(--label-bg);
+  color: var(--main);
+  font-size: 12px;
+  font-weight: 550;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.space-label.secondary {
+  padding: 1px 6px;
+  border-color: var(--line);
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.space-message {
+  position: absolute;
+  z-index: 2;
+  top: var(--map-center-y,50%);
+  left: var(--map-center-x,50%);
+  width: max-content;
+  max-width: calc(100% - var(--space-6));
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  transform: translate(-50%,-50%);
+  border: 1px solid #334056;
+  border-radius: var(--inner-radius);
+  background: #101820;
+  color: #dbe5f5;
+  font-size: 14px;
+  text-align: center;
+}
+
+.launch-sites {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.launch-site {
+  position: absolute;
+  z-index: 1;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.launch-site::before {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 4px;
+  width: 8px;
+  height: 8px;
+  transform: rotate(45deg);
+  border: 1px solid var(--text);
+  background: var(--paper);
+  box-shadow: 0 0 0 1px var(--paper);
+}
+
+.launch-site-label {
+  display: none;
+  position: absolute;
+  padding: 3px 7px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--label-bg);
+  color: var(--text);
+  font-size: 12px;
+  line-height: 16px;
+  white-space: nowrap;
+  text-align: center;
+  pointer-events: none;
+}
+
+.launch-site:focus-visible, .launch-site.is-open {
+  z-index: 4;
+}
+
+.launch-site:focus-visible .launch-site-label, .launch-site.is-open .launch-site-label {
+  display: block;
+}
+
+@media (hover:hover) {
+  .launch-site:hover {
+    z-index: 4;
+  }
+
+  .launch-site:hover .launch-site-label {
+    display: block;
+  }
+}

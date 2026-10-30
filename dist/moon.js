@@ -52,7 +52,7 @@ export async function createMoon(container,label) {
   marker.material.color.set(value('main'));
   const gridGeometry=new THREE.BufferGeometry();
   gridGeometry.setAttribute('position',new THREE.Float32BufferAttribute(sphereGridVertices(),3));
-  scene.add(new THREE.LineSegments(gridGeometry,new THREE.LineBasicMaterial({color:value('muted'),transparent:true,opacity:.35})));
+  scene.add(new THREE.LineSegments(gridGeometry,new THREE.LineBasicMaterial({color:value('muted'),transparent:true,opacity:.15})));
 
   function render() {
     const width=container.clientWidth,height=container.clientHeight;
