@@ -3,7 +3,7 @@ import { normalWorldGeometry, output, texture, vec3, vec4, normalize, positionWo
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { eciToEcf, gstime } from 'satellite.js';
 import { CATALOG, position } from './orbits.js';
-import { sunDirection, frameCamera } from './map.js';
+import { sunDirection, frameCamera, sphereGridVertices, LAUNCH_SITES, createLaunchMarker, positionLaunchMarker } from './map.js';
 
 const radius=6378.137;
 const vector=p=>new THREE.Vector3(p.x,p.z,-p.y).divideScalar(radius);
@@ -108,17 +108,15 @@ export async function createEarth(container,label,hoverLabel,onSelect,getViewpor
   next.geometry.setAttribute('lineDistance',new THREE.Float32BufferAttribute(new Float32Array(161),1));
   scene.add(previous,next);
 
-  const gridVertices=[];
-  const globePoint=(lon,lat)=>{
-    const a=lon*Math.PI/180,b=lat*Math.PI/180;
-    return [1.002*Math.cos(b)*Math.cos(a),1.002*Math.sin(b),-1.002*Math.cos(b)*Math.sin(a)];
-  };
-  for (let lat=-60;lat<=60;lat+=30) for (let lon=-180;lon<180;lon+=3) gridVertices.push(...globePoint(lon,lat),...globePoint(lon+3,lat));
-  for (let lon=-180;lon<180;lon+=30) for (let lat=-90;lat<90;lat+=3) gridVertices.push(...globePoint(lon,lat),...globePoint(lon,lat+3));
   const gridGeometry=new THREE.BufferGeometry();
-  gridGeometry.setAttribute('position',new THREE.Float32BufferAttribute(gridVertices,3));
+  gridGeometry.setAttribute('position',new THREE.Float32BufferAttribute(sphereGridVertices(),3));
   const grid=new THREE.LineSegments(gridGeometry,new THREE.LineBasicMaterial({color:retiredColor,transparent:true,opacity:.35}));
-  grid.visible=false; scene.add(grid);
+  scene.add(grid);
+  const launchMarkers=LAUNCH_SITES.map(site=>{
+    const lon=site.lon*Math.PI/180, lat=site.lat*Math.PI/180;
+    const button=createLaunchMarker(site); button.hidden=true; container.append(button);
+    return {site,button,vector:new THREE.Vector3(1.002*Math.cos(lat)*Math.cos(lon),1.002*Math.sin(lat),-1.002*Math.cos(lat)*Math.sin(lon))};
+  });
 
   let entries=[], selected, hovered, pointer, initial=true, trackSecond, trackElements, renderWidth, renderHeight;
 
@@ -153,11 +151,17 @@ export async function createEarth(container,label,hoverLabel,onSelect,getViewpor
     }
     frameCamera(camera,width,height,getViewport());
     renderer.render(scene,camera);
+    for (const entry of launchMarkers) {
+      const point=screenPoint(entry);
+      entry.button.hidden=!point;
+      if (point) positionLaunchMarker(entry.button,entry.site,point.x,point.y,width);
+    }
     placeLabel(label,entries.find(entry=>entry.sat.id===selected));
     placeLabel(hoverLabel,hovered===selected ? null : entries.find(entry=>entry.sat.id===hovered));
   }
 
   function reset() {
+    if (!container.clientWidth || !container.clientHeight) { initial=true; return; }
     const extent=Math.max(1.2,...entries.map(entry=>entry.vector.length()));
     const angle=frameCamera(camera,container.clientWidth,container.clientHeight,getViewport());
     const distance=Math.min(controls.maxDistance,extent/Math.sin(angle)*1.15);
@@ -166,7 +170,7 @@ export async function createEarth(container,label,hoverLabel,onSelect,getViewpor
     controls.target.set(0,0,0); controls.update(); render();
   }
 
-  function update(rows,date,selectedId,showGrid) {
+  function update(rows,date,selectedId) {
     const time=Number(date), second=Math.floor(time/1000);
     entries=rows.map(row=>({...row,vector:vector(row.point.ecf)}));
     selected=selectedId;
@@ -207,7 +211,6 @@ export async function createEarth(container,label,hoverLabel,onSelect,getViewpor
       }
       trackSecond=second; trackElements=chosen.sat.elements;
     }
-    grid.visible=showGrid;
     const sun=sunDirection(date);
     sunlight.position.set(sun.x,sun.z,-sun.y).multiplyScalar(30);
     sunVector.value.copy(sunlight.position).normalize();
@@ -248,6 +251,13 @@ export async function createEarth(container,label,hoverLabel,onSelect,getViewpor
   });
   renderer.domElement.addEventListener('pointercancel',()=>{pointer=undefined;});
   renderer.domElement.addEventListener('pointerleave',()=>{hovered=undefined; render();});
+  textureLoader.load('/textures/starmap.jpg',background=>{
+    background.mapping=THREE.EquirectangularReflectionMapping;
+    background.colorSpace=THREE.SRGBColorSpace;
+    scene.background=background;
+    scene.backgroundIntensity=.18;
+    render();
+  },undefined,()=>{});
   controls.addEventListener('change',render);
   new ResizeObserver(render).observe(container);
   render();

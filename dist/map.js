@@ -1,4 +1,6 @@
 import { gstime, eciToEcf } from 'satellite.js';
+import LAUNCH_SITES from '../data/launch-sites.json' with {type:'json'};
+export { LAUNCH_SITES };
 
 const intersects = (a,b) => a.x < b.x+b.width+4 && a.x+a.width+4 > b.x && a.y < b.y+b.height+4 && a.y+a.height+4 > b.y;
 
@@ -10,6 +12,17 @@ export function project(lon, lat, view) {
 export function frameCamera(camera,width,height,area={x:0,y:0,width,height}) {
   camera.setViewOffset(width,height,width/2-area.x-area.width/2,height/2-area.y-area.height/2,width,height);
   return Math.atan(Math.tan(camera.fov*Math.PI/360)*Math.min(area.width,area.height)/height);
+}
+
+// The same latitude/longitude geometry is used for both textured globes.
+export function sphereGridVertices() {
+  const vertices=[], point=(lon,lat)=>{
+    const a=lon*Math.PI/180,b=lat*Math.PI/180;
+    return [1.002*Math.cos(b)*Math.cos(a),1.002*Math.sin(b),-1.002*Math.cos(b)*Math.sin(a)];
+  };
+  for (let lat=-60;lat<=60;lat+=30) for (let lon=-180;lon<180;lon+=3) vertices.push(...point(lon,lat),...point(lon+3,lat));
+  for (let lon=-180;lon<180;lon+=30) for (let lat=-90;lat<90;lat+=3) vertices.push(...point(lon,lat),...point(lon,lat+3));
+  return vertices;
 }
 
 // Only selected, hovered and focused labels need placement, usually at most three.
@@ -81,16 +94,41 @@ export function nightMask(time,width=720,height=360) {
     const angle=((x+.5)*360/width-180)*Math.PI/180;
     return (Math.cos(angle)*sun.x+Math.sin(angle)*sun.y)/length;
   });
-  const pixels=new Uint8ClampedArray(width*height*4);
+  const pixels=new Uint8ClampedArray(width*height*4), shade=new Uint8ClampedArray(width*height*4);
   for (let y=0;y<height;y++) {
     const lat=(90-(y+.5)*180/height)*Math.PI/180;
     const vertical=Math.sin(lat)*sun.z/length, horizontal=Math.cos(lat);
     for (let x=0;x<width;x++) {
       const index=(y*width+x)*4;
-      const amount=Math.max(0,Math.min(1,-(vertical+horizontal*longitude[x])/twilight));
+      const sunlight=vertical+horizontal*longitude[x];
+      const amount=Math.max(0,Math.min(1,-sunlight/twilight));
+      shade[index+3]=Math.round(255*.5*(1-Math.sqrt(Math.max(0,sunlight))));
       pixels[index]=0; pixels[index+1]=0; pixels[index+2]=0;
-      pixels[index+3]=Math.round(255*.68*amount*amount*(3-2*amount));
+      pixels[index+3]=Math.round(255*amount*amount*(3-2*amount));
     }
   }
-  return {pixels,width,height};
+  return {pixels,shade,width,height};
+}
+
+export function createLaunchMarker(site) {
+  const button=document.createElement('button');
+  button.type='button'; button.className='launch-site';
+  button.setAttribute('aria-label','발사장 '+site.name);
+  const label=document.createElement('span');
+  label.className='launch-site-label'; label.textContent=site.name; label.setAttribute('aria-hidden','true');
+  button.append(label);
+  button.addEventListener('click',()=>{
+    const open=!button.classList.contains('is-open');
+    document.querySelectorAll('.launch-site.is-open').forEach(other=>other.classList.remove('is-open'));
+    button.classList.toggle('is-open',open);
+  });
+  button.addEventListener('blur',()=>button.classList.remove('is-open'));
+  return button;
+}
+
+export function positionLaunchMarker(button,site,x,y,width) {
+  button.style.left=(x-8)+'px'; button.style.top=(y-8)+'px';
+  const labelWidth=Math.min(width-16,site.name.length*12+16);
+  const left=Math.max(8,Math.min(width-labelWidth-8,x-labelWidth/2));
+  Object.assign(button.firstElementChild.style,{width:labelWidth+'px',left:(left-x+8)+'px',top:(y>36 ? -28 : 20)+'px'});
 }

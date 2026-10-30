@@ -26,7 +26,8 @@ const files={
   'node_modules/three/examples/jsm/controls/OrbitControls.js':'dist/vendor/OrbitControls.js',
   'node_modules/satellite.js/LICENSE.md':'dist/licenses/satellite-LICENSE.txt',
   'node_modules/three/LICENSE':'dist/licenses/three-LICENSE.txt',
-  'data/satellites.json':'dist/data/satellites.json'
+  'data/satellites.json':'dist/data/satellites.json',
+  'data/launch-sites.json':'dist/data/launch-sites.json'
 };
 for (const [source,target] of Object.entries(files)) {
   const destination=fileURLToPath(new URL(target,import.meta.url));

@@ -1,10 +1,10 @@
 import { CATALOG, STATUS_LABELS, parseElements, position, sampleDanuri, LUNAR_ORBIT_INSERTION } from './orbits.js';
-import { project, layoutMarkers, wrapTrack, nightMask } from './map.js';
+import { project, layoutMarkers, wrapTrack, nightMask, LAUNCH_SITES, createLaunchMarker, positionLaunchMarker } from './map.js';
 
 const $ = selector => document.querySelector(selector);
 const detail = Object.fromEntries([...$('#detail').querySelectorAll('[data-detail]')].map(element => [element.dataset.detail, element]));
 const DANURI = {
-  name:'다누리', english:'Korea Pathfinder Lunar Orbiter · KPLO', group:'달 궤도', agency:'한국항공우주연구원',
+  id:'danuri', name:'다누리', english:'Korea Pathfinder Lunar Orbiter · KPLO', group:'달 궤도', agency:'한국항공우주연구원',
   launched:'2022-08-04', vehicle:'팰컨 9 (스페이스X)', site:'미국 케이프커내버럴 우주군기지', description:'우리나라 최초의 달 궤도선.'
 };
 const canvas = $('#map'), ctx = canvas.getContext('2d');
@@ -17,23 +17,30 @@ function readPalette() {
 const palette=readPalette();
 const state = {
   satellites: CATALOG.map((s,index) => ({ ...s, number:String(index+1).padStart(2,'0'), elements:null })), selected: 22077,
-  hovered: null, focused: null, filter: 'ALL', status: 'ALL', query: '', view: 'earth', earthMode:'2d', showGrid: false, followSelected:true,
+  hovered: null, focused: null, filter: 'ALL', status: 'ALL', query: '', view: 'earth', earthMode:'2d', moonMode:'3d', earthStyle:'satellite', followSelected:true,
   map: { zoom: 1, x: 0, y: 0 }
 };
 let drag, viewport, currentTime=new Date();
 const compact=matchMedia('(max-width:1000px)'), panels=$('.panel-layer');
-let moonView, moonData, moonPromise, moonError='', moonRetryAfter=0;
+let moonView, moonData, moonPromise, moonError='', moonRetryAfter=0, moonSurfaceReady=false;
+let earthTextureError='';
 let earthView, earthPromise, earthRetryAfter=0;
-const markerButtons = new Map();
+const markerButtons = new Map(), launchButtons=new Map();
 const positions = new Map();
 const nightCanvas=document.createElement('canvas'), nightContext=nightCanvas.getContext('2d');
-nightCanvas.width=720; nightCanvas.height=360;
-let nightKey, trackCache, drawRequest;
+const maskCanvas=document.createElement('canvas'), maskContext=maskCanvas.getContext('2d');
+maskCanvas.width=720; maskCanvas.height=360;
+const shadeCanvas=document.createElement('canvas'), shadeContext=shadeCanvas.getContext('2d');
+shadeCanvas.width=720; shadeCanvas.height=360;
+const cloudCanvas=document.createElement('canvas'), cloudContext=cloudCanvas.getContext('2d');
+cloudCanvas.width=2048; cloudCanvas.height=1024;
+let nightImage, maskKey, nightKey, trackCache, drawRequest;
 const timeFormatter = new Intl.DateTimeFormat('ko-KR', {timeZone:'Asia/Seoul',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false});
 const escapeHTML = value => String(value).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
 const koreanTime = date => timeFormatter.format(date);
 const clockFormatter=new Intl.DateTimeFormat('ko-KR',{timeZone:'Asia/Seoul',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'});
 const activeSats = () => state.satellites.filter(s => (state.filter === 'ALL' || s.group === state.filter) && (state.status === 'ALL' || s.status === state.status) && `${s.name} ${s.english} ${s.id} ${s.agency} ${s.description}`.toLowerCase().includes(state.query));
+const mapMode=()=>state[state.view+'Mode'];
 const selectedSat = () => state.satellites.find(s => s.id === state.selected);
 const color = sat => sat.status === 'retired' ? palette.muted : palette.main;
 
@@ -63,8 +70,7 @@ function updateLayout() {
     right=$('.detail-dock').getBoundingClientRect().left-box.left-16;
     if (state.view==='earth') left=$('.sidebar').getBoundingClientRect().right-box.left+16;
   }
-  const top=16, panelTop=compact.matches ? panels.getBoundingClientRect().top-box.top-12 : box.height;
-  const bottom=Math.min(box.height-16,panelTop);
+  const top=16, bottom=box.height-16;
   viewport={x:left,y:top,width:Math.max(80,right-left),height:Math.max(80,bottom-top)};
   $('.workspace').style.setProperty('--map-center-x',(viewport.x+viewport.width/2)+'px');
   $('.workspace').style.setProperty('--map-center-y',(viewport.y+viewport.height/2)+'px');
@@ -75,10 +81,13 @@ function syncPanels() {
   const expanded=panels.dataset.expanded==='true';
   $('#panel-expand').setAttribute('aria-expanded',String(expanded));
   $('#panel-expand').setAttribute('aria-label',expanded ? '위성 정보 접기' : '위성 정보 펼치기');
-  $('#detail').inert=compact.matches && !expanded;
+  $('#panel-content').inert=compact.matches && !expanded;
   const listVisible=state.view==='earth' && (!compact.matches || panels.dataset.listOpen==='true');
   $('.sidebar').inert=!listVisible;
   $('#catalog-toggle').setAttribute('aria-expanded',String(listVisible));
+  const fullscreen=compact.matches && (expanded || listVisible);
+  panels.classList.toggle('is-fullscreen',fullscreen);
+  $('.workspace').classList.toggle('panel-open',fullscreen);
   updateLayout();
 }
 
@@ -87,8 +96,9 @@ function select(id) {
   state.followSelected=true;
   $('#detail').scrollTop=0;
   if (compact.matches) {
-    if ($('.sidebar').contains(document.activeElement)) $('#catalog-toggle').focus();
+    const fromList=$('.sidebar').contains(document.activeElement);
     panels.dataset.listOpen='false'; panels.dataset.expanded='false'; syncPanels();
+    if (fromList) $('#catalog-toggle').focus();
   }
   $('#sat-list').querySelectorAll('[data-id]').forEach(button => {
     button.setAttribute('aria-pressed',String(Number(button.dataset.id)===id));
@@ -98,6 +108,7 @@ function select(id) {
 function renderList() {
   const scrollTop = $('#sat-list').scrollTop;
   const matches = activeSats();
+  $('#mission-count').textContent=matches.length;
   if (!matches.some(s => s.id === state.selected)) { state.selected=matches[0]?.id ?? null; state.followSelected=true; }
   $('#sat-list').innerHTML = matches.length ? matches.map(s => {
     return `<button class="sat-item" type="button" data-id="${s.id}" aria-pressed="${s.id === state.selected}">
@@ -118,8 +129,6 @@ function renderDetail() {
   const moon=state.view==='moon', s=moon ? DANURI : selectedSat(), time=currentTime;
   detail.empty.hidden=Boolean(s);
   detail.content.hidden=!s;
-  $('#panel-name').textContent=s?.name || '선택한 위성이 없습니다.';
-  $('#panel-metric').textContent='';
   if (!s) return;
 
   fillDetail({name:s.name,english:s.english,group:s.group,agency:s.agency,launched:s.launched,vehicle:s.vehicle,site:s.site,description:s.description,status:STATUS_LABELS[s.status]});
@@ -137,12 +146,10 @@ function renderDetail() {
   detail.moonGrid.hidden=!moon || !p;
   detail.noData.hidden=Boolean(p);
   if (!p) {
-    $('#panel-metric').textContent='궤도 자료 없음';
     fillDetail({noData:moon ? moonError || (moonData ? '선택한 시각의 궤적 자료가 없습니다.' : '다누리 궤적을 불러오는 중입니다.') : '사용할 수 있는 궤도 자료가 없습니다.'});
     return;
   }
 
-  $('#panel-metric').textContent=`고도 ${Math.round(p.altitude).toLocaleString('ko-KR')} km · ${moon ? '달 궤도' : s.group}`;
   const coordinate=(value,positive,negative)=>`${Math.abs(value).toFixed(2)}° ${value>=0 ? positive : negative}`;
   if (moon) {
     const elapsedDays=Math.max(0,(Number(time)-LUNAR_ORBIT_INSERTION)/86400000);
@@ -186,8 +193,10 @@ async function loadMoon() {
   moonPromise=(async()=>{
     let loadingTimer;
     try {
-      const scene=moonView ? Promise.resolve(moonView) : import('./moon.js').then(({createMoon})=>createMoon($('#moon-scene'),$('#moon-label'))).then(view=>{moonView=view;return view;});
-      const trajectory=fetch('/api/danuri',{cache:'no-store',signal:AbortSignal.timeout(25000)}).then(async response=>{
+      const flat=state.moonMode==='2d';
+      const scene=flat ? Promise.resolve(null) : moonView ? Promise.resolve(moonView) : import('./moon.js').then(({createMoon})=>createMoon($('#moon-scene'),$('#moon-label'))).then(view=>{moonView=view;return view;});
+      const surface=flat && !moonSurfaceReady ? (async()=>{ const image=new Image(); image.src='/textures/moon.jpg'; await image.decode(); moonSurfaceReady=true; })() : Promise.resolve();
+      const trajectory=moonData && Date.now()-Date.parse(moonData.fetchedAt)<86400000 ? Promise.resolve(moonData) : fetch('/api/danuri',{cache:'no-store',signal:AbortSignal.timeout(25000)}).then(async response=>{
         const data=await response.json();
         if (!response.ok || data.error) throw new Error(data.error || '다누리 자료 서버 HTTP '+response.status);
         if (data.frame!=='MOON_ME' || !Array.isArray(data.points) || data.points.length<2) throw new Error('다누리 궤적 형식이 올바르지 않습니다.');
@@ -196,11 +205,11 @@ async function loadMoon() {
         if (!moonView) $('#moon-message').textContent='달 화면을 불러오는 중';
         return data;
       });
-      const [view,data]=await Promise.race([
-        Promise.all([scene,trajectory]),
+      const [,data]=await Promise.race([
+        Promise.all([scene,trajectory,surface]),
         new Promise((_,reject)=>{loadingTimer=setTimeout(()=>reject(new Error('달 화면 로딩 시간이 초과되었습니다. 잠시 후 다시 시도합니다.')),30000);})
       ]);
-      moonData=data; view.setData(data);
+      moonData=data; moonView?.setData(data);
       $('#moon-message').hidden=true;
     } catch (error) {
       moonError=error.name==='TimeoutError' ? '다누리 자료 또는 달 이미지 응답 시간이 초과되었습니다.' : error.message || '달 화면을 불러오지 못했습니다.';
@@ -221,13 +230,51 @@ function sizeCanvas() {
   return { w: box.width, h: box.height };
 }
 
-async function loadWorld() {
+async function loadEarthTextures() {
   try {
-    const image=new Image(); image.src='/world.svg';
-    await image.decode();
-    $('#map-message').hidden = true;
+    const images=await Promise.all(['earth_day_4096.jpg','earth_night_4096.jpg'].map(async name=>{
+      const image=new Image(); image.src='/textures/'+name;
+      await image.decode(); return image;
+    }));
+    nightImage=images[1];
+    nightCanvas.width=nightImage.naturalWidth; nightCanvas.height=nightImage.naturalHeight;
+    $('#map-message').hidden=true;
     draw();
-  } catch { $('#map-message').textContent = '지도 파일을 불러오지 못했습니다. 새로고침해 주세요.'; }
+  } catch { earthTextureError='지구 이미지를 불러오지 못했습니다. 새로고침해 주세요.'; draw(); return; }
+  // Clouds are optional; the day/night map is already usable while they load.
+  try {
+    const clouds=new Image(); clouds.src='/textures/earth_bump_roughness_clouds_4096.jpg';
+    await clouds.decode();
+    cloudContext.drawImage(clouds,0,0,cloudCanvas.width,cloudCanvas.height);
+    const image=cloudContext.getImageData(0,0,cloudCanvas.width,cloudCanvas.height), pixels=image.data;
+    for (let i=0;i<pixels.length;i+=4) {
+      const strength=Math.max(0,Math.min(1,(pixels[i+2]/255-.2)/.8));
+      pixels[i]=pixels[i+1]=pixels[i+2]=255;
+      pixels[i+3]=Math.round(255*.38*strength*strength*(3-2*strength));
+    }
+    cloudContext.putImageData(image,0,0);
+    draw();
+  } catch {}
+}
+
+function renderLaunchSites(w,h,view) {
+  const visible=new Set(), width=view.width*view.zoom;
+  for (const site of LAUNCH_SITES) {
+    const point=project(site.lon,site.lat,view);
+    if (point.y<0 || point.y>h) continue;
+    for (let copy=-Math.floor(point.x/width);point.x+copy*width<w;copy++) {
+      const x=point.x+copy*width;
+      if (x<0) continue;
+      const key=site.id+':'+copy;
+      visible.add(key);
+      let button=launchButtons.get(key);
+      if (!button) {
+        button=createLaunchMarker(site); launchButtons.set(key,button); $('#launch-sites').append(button);
+      }
+      positionLaunchMarker(button,site,x,point.y,w);
+    }
+  }
+  for (const [key,button] of launchButtons) if (!visible.has(key)) { button.remove(); launchButtons.delete(key); }
 }
 
 function worldTiles(view,screenWidth) {
@@ -254,30 +301,58 @@ function drawGrid(w,h,view) {
   }
   for (let lat=-90;lat<=90;lat+=step) {
     const {y}=project(0,lat,view);
-    if (y<10 || y>h-10) continue;
+    if (y<0 || y>h) continue;
     ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(w,y); ctx.stroke();
-    latCtx.beginPath(); latCtx.moveTo(37,y); latCtx.lineTo(42,y); latCtx.stroke();
-    latCtx.fillText(`${Math.abs(lat)}°${lat>0 ? 'N' : lat<0 ? 'S' : ''}`,34,y);
+    latCtx.beginPath(); latCtx.moveTo(23,y); latCtx.lineTo(28,y); latCtx.stroke();
+    if (y>25 && y<h-25) {
+      latCtx.save(); latCtx.translate(20,y); latCtx.rotate(-Math.PI/2);
+      latCtx.fillText(`${Math.abs(lat)}°${lat>0 ? 'N' : lat<0 ? 'S' : ''}`,0,0);
+      latCtx.restore();
+    }
   }
 }
 
-function drawNight(w,h,time,view) {
+function updateSolarMasks(time) {
   const key=Math.floor(Number(time)/15000);
+  if (maskKey!==key) {
+    const {pixels,shade,width,height}=nightMask(time);
+    maskContext.putImageData(new ImageData(pixels,width,height),0,0);
+    shadeContext.putImageData(new ImageData(shade,width,height),0,0);
+    maskKey=key;
+  }
+  return key;
+}
+
+function drawNight(w,time,view) {
+  if (!nightImage) return;
+  const key=updateSolarMasks(time);
   if (nightKey!==key) {
-    const {pixels,width,height}=nightMask(time);
-    nightContext.putImageData(new ImageData(pixels,width,height),0,0);
+    nightContext.clearRect(0,0,nightCanvas.width,nightCanvas.height);
+    nightContext.drawImage(nightImage,0,0);
+    nightContext.globalCompositeOperation='destination-in';
+    nightContext.drawImage(maskCanvas,0,0,nightCanvas.width,nightCanvas.height);
+    nightContext.globalCompositeOperation='source-over';
     nightKey=key;
   }
-  for (const {x,y} of worldTiles(view,w)) ctx.drawImage(nightCanvas,x,y,view.width*view.zoom,view.height*view.zoom);
+  for (const {x,y} of worldTiles(view,w)) {
+    const width=view.width*view.zoom, height=view.height*view.zoom;
+    ctx.drawImage(cloudCanvas,x,y,width,height);
+    ctx.drawImage(shadeCanvas,x,y,width,height);
+    ctx.drawImage(nightCanvas,x,y,width,height);
+  }
 }
 
 function drawTrack(sat, time, w, h, view) {
-  if (!sat.elements) return;
+  const lunar=sat.id==='danuri', source=lunar ? moonData : sat.elements;
+  if (!source) return;
   const second=Math.floor(Number(time)/1000);
-  if (trackCache?.second!==second || trackCache.elements!==sat.elements) {
-    const span=Math.min(1440/sat.elements.MEAN_MOTION*.75,180);
-    const tracks=[-1,1].map(sign=>Array.from({length:161},(_,i)=>position(sat,new Date(Number(time)+sign*i/160*span*60000))));
-    trackCache={second,elements:sat.elements,tracks};
+  if (trackCache?.second!==second || trackCache.source!==source) {
+    const span=lunar ? 75 : Math.min(1440/sat.elements.MEAN_MOTION*.75,180);
+    const tracks=[-1,1].map(sign=>Array.from({length:161},(_,i)=>{
+      const date=new Date(Number(time)+sign*i/160*span*60000);
+      return lunar ? sampleDanuri(moonData,date) : position(sat,date);
+    }));
+    trackCache={second,source,tracks};
   }
   const width=view.width*view.zoom, tiles=worldTiles(view,w);
   for (const [index,track] of trackCache.tracks.entries()) {
@@ -304,28 +379,29 @@ function draw() {
 }
 
 function renderMap() {
-  if (state.view === 'moon') {
-    moonView?.update(currentTime);
-    if (!moonView || !moonData || Date.now()-Date.parse(moonData.fetchedAt)>=86400000) loadMoon();
-    return;
-  }
-  if (state.earthMode==='3d') {
-    if (!earthView) loadEarth();
+  const moon=state.view==='moon', mode=mapMode();
+  if (moon && (!moonData || Date.now()-Date.parse(moonData.fetchedAt)>=86400000 || (mode==='3d' ? !moonView : !moonSurfaceReady))) loadMoon();
+  if (panels.classList.contains('is-fullscreen')) return;
+  if (mode==='3d') {
+    if (moon) moonView?.update(currentTime);
+    else if (!earthView) loadEarth();
     else {
-      const time=currentTime;
-      const points=activeSats().flatMap(sat=>{
+      const time=currentTime, points=activeSats().flatMap(sat=>{
         const point=currentPosition(sat,time);
         return point ? [{sat,point}] : [];
       });
-      earthView.update(points,time,state.selected,state.showGrid);
+      earthView.update(points,time,state.selected);
     }
     return;
   }
   const size=sizeCanvas();
   if (!size) return;
-  const {w,h}=size, time=currentTime, visible=activeSats(), chosen=selectedSat();
+  const {w,h}=size, time=currentTime, visible=moon ? [DANURI] : activeSats(), chosen=moon ? DANURI : selectedSat();
+  const message=$('#map-message');
+  message.hidden=moon ? Boolean(moonData && moonSurfaceReady) : state.earthStyle==='map' || Boolean(nightImage);
+  message.textContent=moon ? moonError || (moonSurfaceReady ? '다누리 궤적을 불러오는 중' : '달 이미지를 불러오는 중') : earthTextureError || '지구 이미지를 불러오는 중';
   let view=flatView();
-  const target=state.followSelected ? currentPosition(chosen,time) : null;
+  const target=state.followSelected ? moon ? sampleDanuri(moonData,time) : currentPosition(chosen,time) : null;
   if (target) {
     state.map.x=-target.lon/360*view.width*view.zoom;
     clampMap(); view=flatView();
@@ -337,20 +413,29 @@ function renderMap() {
   axisCtx.setTransform(axisScale,0,0,axisScale,0,0);
   axisCtx.clearRect(0,0,w,28);
   axisCtx.font = '11px Pretendard'; axisCtx.textAlign = 'center'; axisCtx.fillStyle = palette.muted; axisCtx.strokeStyle = palette['line-soft'];
-  if (latitudeAxis.width!==Math.round(42*axisScale)) latitudeAxis.width=Math.round(42*axisScale);
+  if (latitudeAxis.width!==Math.round(28*axisScale)) latitudeAxis.width=Math.round(28*axisScale);
   if (latitudeAxis.height!==canvas.height) latitudeAxis.height=canvas.height;
   latCtx.setTransform(axisScale,0,0,axisScale,0,0);
-  latCtx.clearRect(0,0,42,h);
-  latCtx.font = '11px Pretendard'; latCtx.textAlign = 'right'; latCtx.textBaseline = 'middle'; latCtx.fillStyle = palette.muted; latCtx.strokeStyle = palette['line-soft'];
+  latCtx.clearRect(0,0,28,h);
+  latCtx.font = '11px Pretendard'; latCtx.textAlign = 'center'; latCtx.textBaseline = 'alphabetic'; latCtx.fillStyle = palette.muted; latCtx.strokeStyle = palette['line-soft'];
   const start=project(-180,90,view);
   Object.assign($('#world-map').style,{backgroundPosition:`${start.x}px ${start.y}px`,backgroundSize:`${view.width*view.zoom}px ${view.height*view.zoom}px`});
-  drawNight(w,h,time,view);
-  if (state.showGrid) drawGrid(w,h,view);
+  if (!moon) {
+    if (state.earthStyle==='satellite') drawNight(w,time,view);
+    else {
+      updateSolarMasks(time);
+      ctx.save(); ctx.globalAlpha=.68;
+      for (const {x,y} of worldTiles(view,w)) ctx.drawImage(maskCanvas,x,y,view.width*view.zoom,view.height*view.zoom);
+      ctx.restore();
+    }
+  }
+  drawGrid(w,h,view);
+  if (!moon) renderLaunchSites(w,h,view);
   if (chosen) drawTrack(chosen,time,w,h,view);
   const points = visible.flatMap(sat => {
-    const p = currentPosition(sat,time);
+    const p=moon ? sampleDanuri(moonData,time) : currentPosition(sat,time);
     if (!p) return [];
-    const selected=sat.id===state.selected, point=project(p.lon,p.lat,view), width=view.width*view.zoom;
+    const selected=moon || sat.id===state.selected, point=project(p.lon,p.lat,view), width=view.width*view.zoom;
     const copies=[], first=-Math.floor(point.x/width);
     for (let copy=first;point.x+copy*width<w;copy++) {
       const x=point.x+copy*width;
@@ -386,7 +471,7 @@ function renderMap() {
       name.textContent = sat.name;
       button.setAttribute('aria-label',sat.name);
       button.append(name);
-      button.addEventListener('click',() => select(sat.id));
+      button.addEventListener('click',()=>{ if (sat.id==='danuri') { state.followSelected=true; draw(); } else select(sat.id); });
       button.addEventListener('pointerenter',event => { if (event.pointerType !== 'touch') { state.hovered = key; draw(); } });
       button.addEventListener('pointerleave',() => { if (state.hovered === key) { state.hovered = null; draw(); } });
       button.addEventListener('focus',() => { state.focused = key; draw(); });
@@ -428,14 +513,20 @@ function updateUI() {
 }
 
 function setView(view) {
-  state.view = view;
-  const globe=view==='earth' && state.earthMode==='3d';
-  document.querySelectorAll('[data-view]').forEach(b => b.setAttribute('aria-pressed',String(b.dataset.view === view)));
-  $('#moon-panel').hidden = view !== 'moon';
-  $('#earth-panel').hidden = !globe;
-  $('.map-frame').classList.toggle('axes-hidden',view !== 'earth' || globe || !state.showGrid);
-  $('.workspace').classList.toggle('moon-active',view === 'moon');
+  if (state.view!==view) { state.map={zoom:1,x:0,y:0}; state.followSelected=true; }
+  state.view=view;
+  if (view==='moon') panels.dataset.listOpen='false';
+  const globe=mapMode()==='3d', moon=view==='moon';
+  document.querySelectorAll('[data-view]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.view===view)));
+  document.querySelectorAll('[data-map-mode]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.mapMode===mapMode())));
+  document.querySelectorAll('[data-surface]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.surface===state.earthStyle)));
+  $('#moon-panel').hidden=!(moon && globe);
+  $('#earth-panel').hidden=moon || !globe;
+  $('.map-frame').classList.toggle('axes-hidden',globe);
+  $('.workspace').classList.toggle('moon-active',moon);
   $('.workspace').classList.toggle('globe-active',globe);
+  const image=moon ? '/textures/moon.jpg' : state.earthStyle==='map' ? '/world.svg' : '/textures/earth_day_4096.jpg';
+  $('#world-map').style.backgroundImage='url("'+image+'")';
   syncPanels(); updateUI();
 }
 
@@ -491,8 +582,7 @@ function clampMap() {
   state.map.y=Math.max(-limitY,Math.min(limitY,state.map.y));
 }
 function zoom(factor,clientX,clientY) {
-  if (state.view === 'moon') { moonView?.zoom(factor); return; }
-  if (state.earthMode === '3d') { earthView?.zoom(factor); return; }
+  if (mapMode()==='3d') { (state.view==='moon' ? moonView : earthView)?.zoom(factor); return; }
   const old=state.map.zoom, next=Math.max(1,Math.min(8,old*factor));
   if (next===old) return;
   state.map.zoom=next;
@@ -505,7 +595,7 @@ function zoom(factor,clientX,clientY) {
   clampMap(); draw();
 }
 $('#map-wrap').addEventListener('wheel',event=>{
-  if (state.view!=='earth' || state.earthMode!=='2d' || !event.deltaY) return;
+  if (mapMode()!=='2d' || !event.deltaY || event.target.closest('.panel-layer')) return;
   event.preventDefault();
   const unit=event.deltaMode===1 ? 16 : event.deltaMode===2 ? canvas.clientHeight : 1;
   const delta=Math.max(-200,Math.min(200,event.deltaY*unit));
@@ -514,8 +604,7 @@ $('#map-wrap').addEventListener('wheel',event=>{
 $('#zoom-in').addEventListener('click',() => zoom(1.5));
 $('#zoom-out').addEventListener('click',() => zoom(1/1.5));
 $('#zoom-reset').addEventListener('click',() => {
-  if (state.view==='moon') moonView?.reset();
-  else if (state.earthMode==='3d') earthView?.reset();
+  if (mapMode()==='3d') (state.view==='moon' ? moonView : earthView)?.reset();
   else { state.map={zoom:1,x:0,y:0}; state.followSelected=true; draw(); }
 });
 canvas.addEventListener('pointerdown',event => {
@@ -546,40 +635,45 @@ document.querySelectorAll('[data-filter]').forEach(b => b.addEventListener('clic
   renderList(); updateUI();
 }));
 document.querySelectorAll('[data-view]').forEach(b => b.addEventListener('click',() => setView(b.dataset.view)));
-document.querySelectorAll('[data-earth-mode]').forEach(button=>button.addEventListener('click',()=>{
-  state.earthMode=button.dataset.earthMode;
-  document.querySelectorAll('[data-earth-mode]').forEach(item=>item.setAttribute('aria-pressed',String(item===button)));
-  setView('earth');
-}));
-$('#grid-toggle').addEventListener('click',event=>{
-  state.showGrid=!state.showGrid;
-  event.currentTarget.setAttribute('aria-pressed',String(state.showGrid));
+document.querySelectorAll('[data-map-mode]').forEach(button=>button.addEventListener('click',()=>{
+  state[state.view+'Mode']=button.dataset.mapMode;
+  if (state.view==='moon') { moonRetryAfter=0; moonError=''; }
   setView(state.view);
-});
+}));
+document.querySelectorAll('[data-surface]').forEach(button=>button.addEventListener('click',()=>{
+  state.earthStyle=button.dataset.surface;
+  setView(state.view);
+}));
 $('#fetch-data').addEventListener('click',() => connectPublic(true));
 const layoutObserver=new ResizeObserver(updateLayout);
 for (const element of [$('#map-wrap'),panels,$('#detail'),$('.sidebar'),$('.detail-dock'),$('.control-panel')]) layoutObserver.observe(element);
 compact.addEventListener('change',syncPanels);
+$('#catalog-close').addEventListener('click',()=>{
+  panels.dataset.listOpen='false'; syncPanels(); $('#catalog-toggle').focus();
+});
 $('#catalog-toggle').addEventListener('click',()=>{
-  panels.dataset.listOpen=String(panels.dataset.listOpen!=='true');
+  const open=panels.dataset.listOpen!=='true';
+  panels.dataset.listOpen=String(open);
+  if (open) panels.dataset.expanded='false';
   syncPanels();
 });
 $('#panel-expand').addEventListener('click',()=>{
-  panels.dataset.expanded=String(panels.dataset.expanded!=='true');
+  const open=panels.dataset.expanded!=='true';
+  panels.dataset.expanded=String(open);
+  if (open) { panels.dataset.listOpen='false'; $('#panel-content').scrollTop=0; }
   syncPanels();
 });
 window.addEventListener('keydown',event=>{
   if (event.key==='Escape' && compact.matches && (panels.dataset.expanded==='true' || panels.dataset.listOpen==='true')) {
-    $(panels.dataset.listOpen==='true' ? '#catalog-toggle' : '#panel-expand').focus();
-    panels.dataset.listOpen='false'; panels.dataset.expanded='false'; syncPanels();
+    const target=panels.dataset.listOpen==='true' ? '#catalog-toggle' : '#panel-expand';
+    panels.dataset.listOpen='false'; panels.dataset.expanded='false'; syncPanels(); $(target).focus();
   }
   if (state.view==='earth' && event.key==='/' && !['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName)) {
-    event.preventDefault(); panels.dataset.listOpen='true'; syncPanels(); $('.sidebar').scrollTop=0; $('#search').focus();
+    event.preventDefault(); panels.dataset.expanded='false'; panels.dataset.listOpen='true'; syncPanels(); $('.sidebar').scrollTop=0; $('#search').focus();
   }
 });
 setInterval(()=>{ if (!document.hidden) updateUI(); },1000);
 document.addEventListener('visibilitychange',()=>{ updateClock(); if (!document.hidden) updateUI(); });
-$('#mission-count').textContent = CATALOG.length;
 $('#catalog-summary').textContent = Object.entries(STATUS_LABELS).map(([key,label]) => `${label} ${CATALOG.filter(s => s.status === key).length}`).join(' · ');
-updateClock(); syncPanels(); renderList(); loadWorld(); connectPublic();
+updateClock(); setView('earth'); renderList(); loadEarthTextures(); connectPublic();
 document.fonts.ready.then(draw);

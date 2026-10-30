@@ -47,13 +47,14 @@
   <div class="shell">
     <main class="workspace">
       <section class="stage" aria-label="위성 지도">
-        <div class="map-frame axes-hidden">
+        <div class="map-frame">
         <canvas id="latitude-axis" class="latitude-axis" aria-label="위도 눈금" role="img"></canvas>
         <div class="map-wrap" id="map-wrap">
           <div id="world-map" class="world-map flat-only" aria-hidden="true"></div>
           <canvas id="map" class="flat-only" aria-label="위성 위치 지도" role="img"></canvas>
-          <div id="map-markers" class="map-markers earth-only flat-only" aria-label="지도에서 위성 선택"></div>
-          <p id="map-message" class="map-message flat-only" role="status">지도 불러오는 중</p>
+          <div id="map-markers" class="map-markers flat-only" aria-label="지도에서 위성 선택"></div>
+          <div id="launch-sites" class="launch-sites earth-only flat-only" aria-label="발사장 위치"></div>
+          <p id="map-message" class="map-message flat-only" role="status">지구 이미지를 불러오는 중</p>
           <div id="earth-panel" class="space-panel" hidden>
             <div id="earth-scene" class="space-scene">
               <span id="earth-label" class="space-label" hidden></span>
@@ -72,21 +73,22 @@
       </section>
       <div class="panel-layer" data-expanded="false" data-list-open="false">
         <div class="detail-dock">
-          <button id="panel-expand" class="panel-summary" type="button" aria-expanded="false" aria-controls="panel-content" aria-label="위성 패널 펼치기">
-            <span><strong id="panel-name">우리별 1호</strong><span id="panel-metric">궤도 자료를 불러오는 중</span></span>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 15 6-6 6 6"/></svg>
-          </button>
-          <div class="panel-content" id="panel-content">
-            <section class="selected-panel" id="detail" aria-label="선택한 위성 정보" aria-live="polite">
-              <p class="empty" data-detail="empty" hidden>선택한 위성이 없습니다.</p>
-              <div data-detail="content">
-                <div class="detail-status">
-                  <span class="sat-state" data-detail="status">—</span>
-                  <span class="sat-state" data-detail="group">—</span>
-                  <span class="sat-state" data-detail="agency" hidden></span>
+          <section class="selected-panel" id="detail" aria-label="선택한 위성 정보" aria-live="polite">
+            <p class="empty" data-detail="empty" hidden>선택한 위성이 없습니다.</p>
+            <div data-detail="content">
+              <div class="detail-header">
+                <div class="detail-heading">
+                  <div class="detail-status">
+                    <span class="sat-state" data-detail="status">—</span>
+                    <span class="sat-state" data-detail="group">—</span>
+                    <span class="sat-state" data-detail="agency" hidden></span>
+                  </div>
+                  <h2 class="detail-name" data-detail="name">위성 정보</h2>
+                  <div class="detail-en" data-detail="english">—</div>
                 </div>
-                <h2 class="detail-name" data-detail="name">위성 정보</h2>
-                <div class="detail-en" data-detail="english">—</div>
+                <button id="panel-expand" class="detail-toggle" type="button" aria-expanded="false" aria-controls="panel-content" aria-label="위성 정보 펼치기"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 15 6-6 6 6"/></svg></button>
+              </div>
+              <div class="panel-content" id="panel-content">
                 <dl class="detail-launch">
                   <dt>발사일</dt><dd><time data-detail="launched">—</time> <span>UTC</span></dd>
                   <dt hidden>발사체</dt><dd data-detail="vehicle" hidden></dd>
@@ -111,16 +113,22 @@
                 </div>
                 <p class="no-data" data-detail="noData">궤도 자료를 불러오는 중입니다.</p>
               </div>
-            </section>
-          </div>
+            </div>
+          </section>
+          <button id="catalog-toggle" class="catalog-toggle earth-only" type="button" aria-label="위성 목록" aria-expanded="false" aria-controls="satellite-catalog">
+            <span>위성 목록</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+          </button>
           <div class="control-panel" role="group" aria-label="지도 제어">
             <div class="control-tools" role="group" aria-label="지도 도구">
-              <div class="map-display-tools earth-only">
-                <div class="site-nav earth-only" role="group" aria-label="지도 표시">
-                  <button type="button" data-earth-mode="2d" aria-pressed="true">2D</button>
-                  <button type="button" data-earth-mode="3d" aria-pressed="false">3D</button>
+              <div class="map-display-tools">
+                <div id="map-mode-controls" class="site-nav" role="group" aria-label="지도 표시">
+                  <button type="button" data-map-mode="2d" aria-pressed="true">2D</button>
+                  <button type="button" data-map-mode="3d" aria-pressed="false">3D</button>
                 </div>
-                <button id="grid-toggle" class="option-toggle earth-only" type="button" aria-pressed="false"><span>격자</span><span class="toggle-indicator" aria-hidden="true"></span></button>
+                <div class="site-nav earth-only flat-only" role="group" aria-label="지도 배경">
+                  <button type="button" data-surface="map" aria-pressed="false">지도</button>
+                  <button type="button" data-surface="satellite" aria-pressed="true">위성</button>
+                </div>
               </div>
               <div class="map-controls" role="group" aria-label="지도 확대">
                 <button id="zoom-in" class="icon-button" type="button" aria-label="지도 확대"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-zoom-in preview-icon" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/><line x1="11" x2="11" y1="8" y2="14"/><line x1="8" x2="14" y1="11" y2="11"/></svg></button>
@@ -130,12 +138,9 @@
             </div>
           </div>
         </div>
-        <button id="catalog-toggle" class="catalog-toggle earth-only" type="button" aria-expanded="false" aria-controls="satellite-catalog">
-          <span>위성 목록</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
-        </button>
         <aside id="satellite-catalog" class="sidebar earth-only" aria-label="위성 목록">
           <div class="catalog-toolbar">
-          <div class="sidebar-heading"><h2>위성 목록 <span id="mission-count">—</span></h2><p id="catalog-summary"></p></div>
+          <div class="sidebar-heading"><div><h2>위성 목록 <span id="mission-count">—</span></h2><p id="catalog-summary"></p></div><button id="catalog-close" class="catalog-close" type="button" aria-label="위성 목록 닫기"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6"/></svg></button></div>
           <label class="search"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-search preview-icon" aria-hidden="true" focusable="false"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg><input id="search" type="search" aria-label="위성 검색" placeholder="위성 이름 또는 임무" autocomplete="off"><kbd>/</kbd></label>
           <div class="filters" role="group" aria-label="궤도 종류 필터"><button type="button" data-filter="ALL" aria-pressed="true">전체</button><button type="button" data-filter="LEO" aria-pressed="false">저궤도</button><button type="button" data-filter="GEO" aria-pressed="false">정지궤도</button></div>
           </div>

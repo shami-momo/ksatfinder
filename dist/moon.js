@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { sampleDanuri } from './orbits.js';
-import { frameCamera } from './map.js';
+import { frameCamera, sphereGridVertices } from './map.js';
 
 export async function createMoon(container,label) {
   const response=await fetch('/textures/moon.jpg',{signal:AbortSignal.timeout(15000)});
@@ -50,6 +50,9 @@ export async function createMoon(container,label) {
   previous.material.color.set(value('main'));
   next.material.color.set(value('main-bright'));
   marker.material.color.set(value('main'));
+  const gridGeometry=new THREE.BufferGeometry();
+  gridGeometry.setAttribute('position',new THREE.Float32BufferAttribute(sphereGridVertices(),3));
+  scene.add(new THREE.LineSegments(gridGeometry,new THREE.LineBasicMaterial({color:value('muted'),transparent:true,opacity:.35})));
 
   function render() {
     const width=container.clientWidth,height=container.clientHeight;
@@ -72,6 +75,7 @@ export async function createMoon(container,label) {
   }
 
   function reset() {
+    if (!container.clientWidth || !container.clientHeight) { initial=true; return; }
     const angle=frameCamera(camera,container.clientWidth,container.clientHeight);
     const distance=Math.min(controls.maxDistance,1.2/Math.sin(angle)*1.1);
     const current=sampleDanuri(data,time), later=sampleDanuri(data,time+60000);
@@ -114,6 +118,13 @@ export async function createMoon(container,label) {
     }
     render();
   }
+  new THREE.TextureLoader().load('/textures/starmap.jpg',background=>{
+    background.mapping=THREE.EquirectangularReflectionMapping;
+    background.colorSpace=THREE.SRGBColorSpace;
+    scene.background=background;
+    scene.backgroundIntensity=.18;
+    render();
+  },undefined,()=>{});
   controls.addEventListener('change',render);
   new ResizeObserver(render).observe(container);
   update(time);

@@ -13,7 +13,8 @@ const assets={
   '/vendor/three.core.js':path('node_modules/three/build/three.core.js'),
   '/vendor/OrbitControls.js':path('node_modules/three/examples/jsm/controls/OrbitControls.js'),
   '/licenses/satellite-LICENSE.txt':path('node_modules/satellite.js/LICENSE.md'),
-  '/data/satellites.json':path('data/satellites.json')
+  '/data/satellites.json':path('data/satellites.json'),
+  '/data/launch-sites.json':path('data/launch-sites.json')
 };
 const types={'.html':'text/html','.css':'text/css','.js':'text/javascript','.json':'application/json','.svg':'image/svg+xml','.jpg':'image/jpeg','.png':'image/png','.woff':'font/woff','.woff2':'font/woff2','.txt':'text/plain','.md':'text/plain'};
 let port=Number(process.env.PORT || 5173);

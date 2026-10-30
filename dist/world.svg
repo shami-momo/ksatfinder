@@ -10,7 +10,7 @@
 /* CC0 world SVG from Wikimedia Commons. Geometry unchanged; colors and borders adjusted. */
 .country { fill:#405970; fill-rule:evenodd; }
 .country path { stroke:#607a91; stroke-width:0.6; vector-effect:non-scaling-stroke; }
-.KOR { fill:#82aad6; }
+.KOR { fill:#70bfb6; }
 </style>
 
 <g id="positioner" transform="translate(180, 90) scale(1, -1)">
