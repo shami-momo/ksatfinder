@@ -34,7 +34,8 @@ export function position(sat, date) {
     const geo = eciToGeodetic(result.position, sidereal);
     const lat = degreesLat(geo.latitude), lon = degreesLong(geo.longitude);
     if (![lat, lon, geo.height].every(Number.isFinite) || geo.height < 0) return null;
-    return { lat, lon, altitude:geo.height, period:1440/sat.elements.MEAN_MOTION, eci:result.position, ecf:eciToEcf(result.position,sidereal) };
+    const speed=Math.hypot(result.velocity.x,result.velocity.y,result.velocity.z);
+    return { lat, lon, altitude:geo.height, speed, period:1440/sat.elements.MEAN_MOTION, eci:result.position, ecf:eciToEcf(result.position,sidereal) };
   } catch { return null; }
 }
 
@@ -51,12 +52,13 @@ export function sampleDanuri(data,time) {
   const a=points[low], b=points[high], before=points[Math.max(0,low-1)], after=points[Math.min(points.length-1,high+1)];
   const dt=b.t-a.t, u=(t-a.t)/dt;
   const h00=2*u*u*u-3*u*u+1, h10=u*u*u-2*u*u+u, h01=-2*u*u*u+3*u*u, h11=u*u*u-u*u;
-  const p={};
+  const p={}, velocity={};
   for (const key of ['x','y','z']) {
     const va=(b[key]-before[key])/(b.t-before.t), vb=(after[key]-a[key])/(after.t-a.t);
     p[key]=h00*a[key]+h10*dt*va+h01*b[key]+h11*dt*vb;
+    velocity[key]=((6*u*u-6*u)*a[key]/dt+(3*u*u-4*u+1)*va+(-6*u*u+6*u)*b[key]/dt+(3*u*u-2*u)*vb)*1000;
   }
   const distance=Math.hypot(p.x,p.y,p.z);
   const earthDistance=Number.isFinite(a.earthDistance) && Number.isFinite(b.earthDistance) ? a.earthDistance+(b.earthDistance-a.earthDistance)*u : null;
-  return {...p,distance,earthDistance,altitude:distance-data.radius,lat:Math.asin(p.z/distance)*180/Math.PI,lon:Math.atan2(p.y,p.x)*180/Math.PI};
+  return {...p,speed:Math.hypot(velocity.x,velocity.y,velocity.z),distance,earthDistance,altitude:distance-data.radius,lat:Math.asin(p.z/distance)*180/Math.PI,lon:Math.atan2(p.y,p.x)*180/Math.PI};
 }

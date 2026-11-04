@@ -19,6 +19,7 @@ const state = {
 };
 let viewport, drawRequest, announcedSelection, currentTime=new Date();
 const compact=matchMedia('(max-width:1000px)'), panels=$('.panel-layer');
+panels.dataset.expanded=String(!compact.matches);
 const shell=$('.shell'), catalog=$('#satellite-catalog'), catalogToggle=$('#catalog-toggle');
 shell.dataset.listOpen=String(!compact.matches);
 let moonView, moonData, moonPromise, moonError='', moonRetryAfter=0, moonSurfaceReady=false;
@@ -142,6 +143,15 @@ function renderDetail() {
   }
 
   const p=moon ? sampleDanuri(moonData,time) : currentPosition(s,time);
+  fillDetail({
+    identifier:moon ? '달 궤도선 KPLO' : 'NORAD '+s.id,
+    metric1:p ? Math.round(p.altitude).toLocaleString('ko-KR')+' km' : '—',
+    metric2:Number.isFinite(p?.speed) ? p.speed.toFixed(2)+' km/s' : '—',
+    metric3:'D+'+Math.max(0,Math.floor((Number(time)-Date.parse(s.launched+'T00:00:00Z'))/86400000)),
+    moonSpeed:Number.isFinite(p?.speed) ? p.speed.toFixed(2)+' km/s' : '—',
+    moonLaunchElapsed:'D+'+Math.max(0,Math.floor((Number(time)-Date.parse(s.launched+'T00:00:00Z'))/86400000))
+  });
+  detail.speedLabel.title='지구 중심 관성 좌표계에서의 속도';
   detail.orbitHeading.hidden=!p;
   detail.earthGrid.hidden=moon || !p;
   detail.moonGrid.hidden=!moon || !p;
@@ -162,7 +172,7 @@ function renderDetail() {
     });
   } else {
     fillDetail({
-      altitude:Math.round(p.altitude).toLocaleString('ko-KR')+' km',period:p.period.toFixed(1)+' min',
+      period:p.period.toFixed(1)+' min',
       inclination:s.elements.INCLINATION.toFixed(2)+'°',eccentricity:s.elements.ECCENTRICITY.toFixed(5),
       latitude:coordinate(p.lat,'N','S'),longitude:coordinate(p.lon,'E','W')
     });
@@ -369,7 +379,10 @@ document.querySelectorAll('[data-surface]').forEach(button=>button.addEventListe
 $('#fetch-data').addEventListener('click',() => connectPublic(true));
 const layoutObserver=new ResizeObserver(updateLayout);
 for (const element of [$('#map-wrap'),panels,$('#detail'),$('.sidebar'),$('.detail-dock'),$('.control-panel')]) layoutObserver.observe(element);
-compact.addEventListener('change',syncPanels);
+compact.addEventListener('change',()=>{
+  panels.dataset.expanded=String(!compact.matches);
+  syncPanels();
+});
 $('#catalog-close').addEventListener('click',()=>{
   shell.dataset.listOpen='false'; syncPanels(); $('#catalog-toggle').focus();
 });

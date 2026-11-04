@@ -142,12 +142,17 @@
 .sat-list {
   flex: 1;
   margin-top: 16px;
+  /* Align row contents with the toolbar while letting selection fill the gutter. */
+  margin-inline: -14px;
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
-  scrollbar-width: thin;
-  scrollbar-color: var(--line) transparent;
+  scrollbar-width: none;
+  padding-bottom: 20px;
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 20px), transparent);
 }
+
+.sat-list::-webkit-scrollbar { display: none; }
 
 .sat-item {
   width: 100%;
@@ -261,18 +266,22 @@
   background: var(--bg);
   border: 1px solid var(--line);
   pointer-events: auto;
+  border-top: 2px solid var(--main);
 }
 
+.detail-subtitle { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 12px; margin-top: 5px; }
+.detail-ident { color: var(--main); font: 10px var(--font-mono); white-space: nowrap; }
+.detail-en { font-family: var(--font-mono); }
 .detail-header { position: relative; padding-right: 24px; }
 .detail-heading { min-width: 0; }
-.detail-status { display: flex; align-items: center; gap: 0; margin-bottom: 12px; min-width: 0; }
+.detail-status { display: flex; align-items: center; gap: 0; margin-top: 12px; min-width: 0; }
 .detail-status > :not([hidden]) + :not([hidden]) { margin-left: 10px; padding-left: 10px; border-left: 1px solid var(--line); }
 .detail-state { gap: 6px; }
 .detail-state, .detail-orbit { flex-shrink: 0; }
 .detail-orbit, .detail-agency { color: var(--muted); font-size: 11px; line-height: 1.5; }
 .detail-agency { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .detail-name { margin: 0; font-size: 23px; font-weight: 650; letter-spacing: -.6px; line-height: 1.3; }
-.detail-en { margin-top: 5px; color: var(--muted); font-size: 11px; line-height: 1.4; }
+.detail-en { min-width: 0; overflow-wrap: anywhere; color: var(--muted); font-size: 11px; line-height: 1.4; }
 
 .detail-toggle {
   position: absolute;
@@ -294,7 +303,7 @@
 .panel-layer[data-expanded="false"] .panel-content { display: none; }
 
 .panel-content { padding-top: 20px; }
-.detail-section-title { margin: 0 0 14px; color: var(--text-soft); font-size: 12px; font-weight: 600; }
+.detail-section-title { margin: 0 0 14px; padding-bottom: 10px; border-bottom: 1px solid var(--line); color: var(--text-soft); font-size: 11px; font-weight: 600; }
 .orbit-heading { margin-top: 30px; }
 .detail-launch {
   display: grid;
