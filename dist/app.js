@@ -1,6 +1,12 @@
 import { CATALOG, STATUS_LABELS, parseElements, position, sampleDanuri, LUNAR_ORBIT_INSERTION } from './orbits.js';
 import { createMap2D } from './map2d.js';
 
+const STATUS_ICONS = {
+  active: '<path d="M16.364 3.636a.75.75 0 0 0-1.06 1.06 7.5 7.5 0 0 1 0 10.607.75.75 0 0 0 1.06 1.061 9 9 0 0 0 0-12.728ZM4.697 4.697a.75.75 0 0 0-1.061-1.061 9 9 0 0 0 0 12.728.75.75 0 1 0 1.06-1.06 7.5 7.5 0 0 1 0-10.607Z"/><path d="M12.475 6.464a.75.75 0 0 1 1.06 0 5 5 0 0 1 0 7.072.75.75 0 0 1-1.06-1.061 3.5 3.5 0 0 0 0-4.95.75.75 0 0 1 0-1.06ZM7.525 6.464a.75.75 0 0 1 0 1.061 3.5 3.5 0 0 0 0 4.95.75.75 0 0 1-1.06 1.06 5 5 0 0 1 0-7.07.75.75 0 0 1 1.06 0ZM11 10a1 1 0 1 1-2 0 1 1 0 0 1 2 0Z"/>',
+  retired: '<path d="M2.22 2.22a.75.75 0 0 1 1.06 0l6.783 6.782a1 1 0 0 1 .935.935l6.782 6.783a.75.75 0 1 1-1.06 1.06l-6.783-6.782a1 1 0 0 1-.935-.935L2.22 3.28a.75.75 0 0 1 0-1.06ZM3.636 16.364a9.004 9.004 0 0 1-1.39-10.936L3.349 6.53a7.503 7.503 0 0 0 1.348 8.773.75.75 0 0 1-1.061 1.061ZM6.464 13.536a5 5 0 0 1-1.213-5.103l1.262 1.262a3.493 3.493 0 0 0 1.012 2.78.75.75 0 0 1-1.06 1.06ZM16.364 3.636a9.004 9.004 0 0 1 1.39 10.937l-1.103-1.104a7.503 7.503 0 0 0-1.348-8.772.75.75 0 1 1 1.061-1.061ZM13.536 6.464a5 5 0 0 1 1.213 5.103l-1.262-1.262a3.493 3.493 0 0 0-1.012-2.78.75.75 0 0 1 1.06-1.06Z"/>',
+  unknown: '<path fill-rule="evenodd" d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0ZM8.94 6.94a.75.75 0 1 1-1.061-1.061 3 3 0 1 1 2.871 5.026v.345a.75.75 0 0 1-1.5 0v-.5c0-.72.57-1.172 1.081-1.287A1.5 1.5 0 1 0 8.94 6.94ZM10 15a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" clip-rule="evenodd"/>'
+};
+
 const $ = selector => document.querySelector(selector);
 const detail = Object.fromEntries([...$('#detail').querySelectorAll('[data-detail]')].map(element => [element.dataset.detail, element]));
 const DANURI = {
@@ -11,7 +17,7 @@ const state = {
   satellites: CATALOG.map((s,index) => ({ ...s, number:String(index+1).padStart(2,'0'), elements:null })), selected: 22077,
   filter: 'ALL', status: 'ALL', query: '', view: 'earth', earthMode:'2d', moonMode:'3d', earthStyle:'satellite'
 };
-let viewport, drawRequest, currentTime=new Date();
+let viewport, drawRequest, announcedSelection, currentTime=new Date();
 const compact=matchMedia('(max-width:1000px)'), panels=$('.panel-layer');
 const shell=$('.shell'), catalog=$('#satellite-catalog'), catalogToggle=$('#catalog-toggle');
 shell.dataset.listOpen=String(!compact.matches);
@@ -44,8 +50,8 @@ function updateLayout() {
   const box=$('#map-wrap').getBoundingClientRect();
   if (!box.width || !box.height) return;
   let left=16, right=box.width-16;
-  if (!compact.matches) {
-    right=$('.detail-dock').getBoundingClientRect().left-box.left-16;
+  if (!compact.matches && panels.dataset.expanded==='true') {
+    right=$('#detail').getBoundingClientRect().left-box.left-16;
   }
   const top=16, bottom=box.height-16;
   viewport={x:left,y:top,width:Math.max(80,right-left),height:Math.max(80,bottom-top)};
@@ -58,7 +64,7 @@ function syncPanels() {
   const expanded=panels.dataset.expanded==='true';
   $('#panel-expand').setAttribute('aria-expanded',String(expanded));
   $('#panel-expand').setAttribute('aria-label',expanded ? '위성 정보 접기' : '위성 정보 펼치기');
-  $('#panel-content').inert=compact.matches && !expanded;
+  $('#panel-content').inert=!expanded;
   const listVisible=state.view==='earth' && shell.dataset.listOpen==='true';
   catalog.hidden=!listVisible;
   catalogToggle.disabled=state.view!=='earth';
@@ -78,11 +84,13 @@ function select(id) {
   state.selected = id;
   flatMap.follow();
   $('#detail').scrollTop=0;
+  panels.dataset.expanded=String(!compact.matches);
   if (compact.matches) {
     const fromList=$('.sidebar').contains(document.activeElement);
     shell.dataset.listOpen='false'; panels.dataset.expanded='false'; syncPanels();
     if (fromList) $('#catalog-toggle').focus();
   }
+  else syncPanels();
   $('#sat-list').querySelectorAll('[data-id]').forEach(button => {
     button.setAttribute('aria-pressed',String(Number(button.dataset.id)===id));
   });
@@ -96,7 +104,7 @@ function renderList() {
   $('#sat-list').innerHTML = matches.length ? matches.map(s => {
     return `<button class="sat-item" type="button" data-id="${s.id}" aria-pressed="${s.id === state.selected}">
       <span class="sat-number">${s.number}</span><span class="sat-summary"><strong>${escapeHTML(s.name)}</strong><small>${escapeHTML(s.english)} · ${s.group}</small></span>
-      <span class="sat-state ${s.status}">${STATUS_LABELS[s.status]}</span></button>`;
+      <span class="sat-state sat-status-icon ${s.status}" role="img" aria-label="${STATUS_LABELS[s.status]}" title="${STATUS_LABELS[s.status]}"><svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">${STATUS_ICONS[s.status]}</svg></span></button>`;
   }).join('') : '<p class="empty">검색 결과가 없습니다.</p>';
   $('#sat-list').scrollTop = scrollTop;
 }
@@ -110,21 +118,31 @@ function fillDetail(values) {
 
 function renderDetail() {
   const moon=state.view==='moon', s=moon ? DANURI : selectedSat(), time=currentTime;
+  const selection=state.view+':'+(s?.id ?? '');
+  if (selection!==announcedSelection) {
+    $('#selection-status').textContent=s ? s.name+' 선택됨' : '선택한 위성이 없습니다.';
+    announcedSelection=selection;
+  }
   detail.empty.hidden=Boolean(s);
   detail.content.hidden=!s;
   if (!s) return;
 
-  fillDetail({name:s.name,english:s.english,group:s.group,agency:s.agency,launched:s.launched,vehicle:s.vehicle,site:s.site,description:s.description,status:STATUS_LABELS[s.status]});
+  fillDetail({name:s.name,english:s.english,group:s.group,agency:s.agency,launched:s.launched,vehicle:s.vehicle,site:s.site,description:s.description});
   detail.status.hidden=moon;
-  const statusClass='sat-state '+(s.status==='active' ? 'active' : 'unknown');
-  for (const key of ['status','group','agency']) if (detail[key].className!==statusClass) detail[key].className=statusClass;
-  detail.agency.hidden=!s.agency?.trim();
+  if (!moon && detail.status.dataset.status!==s.status) {
+    detail.status.className='sat-state detail-state '+s.status;
+    detail.status.innerHTML=`<svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">${STATUS_ICONS[s.status]}</svg><span>${STATUS_LABELS[s.status]}</span>`;
+    detail.status.dataset.status=s.status;
+  }
+  detail.agencyRow.hidden=!s.agency?.trim();
+  detail.agencyRow.title=s.agency || '';
   detail.launched.dateTime=s.launched;
   for (const key of ['vehicle','site']) {
     detail[key].hidden=detail[key].previousElementSibling.hidden=!s[key]?.trim();
   }
 
   const p=moon ? sampleDanuri(moonData,time) : currentPosition(s,time);
+  detail.orbitHeading.hidden=!p;
   detail.earthGrid.hidden=moon || !p;
   detail.moonGrid.hidden=!moon || !p;
   detail.noData.hidden=Boolean(p);
@@ -140,7 +158,7 @@ function renderDetail() {
       moonAltitude:p.altitude.toFixed(1)+' km',moonDistance:p.distance.toFixed(1)+' km',
       moonLatitude:coordinate(p.lat,'N','S'),moonLongitude:coordinate(p.lon,'E','W'),
       earthDistance:p.earthDistance===null ? '—' : Math.round(p.earthDistance).toLocaleString('ko-KR')+' km',
-      lunarElapsed:'D+'+elapsedDays.toFixed(4)
+      lunarElapsed:'D+'+Math.floor(elapsedDays).toLocaleString('ko-KR')
     });
   } else {
     fillDetail({
@@ -262,35 +280,36 @@ function setView(view) {
 
 function updateSource(message,data) {
   $('#data-route').textContent=message;
-  if (data?.fetchedAt) {
+  $('#data-route').hidden=Boolean(data?.done);
+  if (data?.done && data.fetchedAt) {
     $('#source-time').hidden=false;
-    $('#source-time').textContent='데이터 갱신 : '+koreanTime(new Date(data.fetchedAt))+' KST';
+    $('#source-time').textContent='갱신 '+koreanTime(new Date(data.fetchedAt))+' KST · '+data.elements.length+'기';
   }
   if (data?.done) {
     const notes=[...(data.warnings || [])];
     if (data.unavailable?.length) notes.push('자료 없음 '+data.unavailable.length+'기');
-    $('#data-warning').textContent=notes.join(' · ');
+    $('#warning-details').textContent=notes.join(' · ');
+    $('#warning-summary').textContent=data.unavailable?.length ? data.unavailable.length+'기 자료 없음' : '자료 연결 안내';
     $('#data-warning').hidden=!notes.length;
   }
   updateUI();
 }
 
-function applyElements(rows) {
+function applyElements(rows,{replace=false}={}) {
   const valid = parseElements(rows);
   if (!valid.size) throw new Error('최근 7일 이내의 유효한 궤도 자료가 없습니다');
-  state.satellites = state.satellites.map(s => valid.has(s.id) ? { ...s,elements:valid.get(s.id),record:null } : s);
+  state.satellites = state.satellites.map(s => valid.has(s.id) ? { ...s,elements:valid.get(s.id),record:null } : replace ? {...s,elements:null,record:null} : s);
 }
 
 async function connectPublic(force=false) {
   const button=$('#fetch-data'); button.disabled=true; button.textContent=force ? '조회 중' : '확인 중';
-  $('#source-time').hidden=true; $('#data-warning').hidden=true;
-  state.satellites=state.satellites.map(s=>({...s,elements:null,record:null}));
+  $('#data-warning').hidden=true;
   updateSource(force ? '외부 API 조회 중' : '서버 저장 자료 확인 중');
   let finalData;
   const receive=data=>{
     if (data.error) throw new Error(data.error);
     if (data.elements?.length) {
-      try { applyElements(data.elements); }
+      try { applyElements(data.elements,{replace:data.done===true}); }
       catch { if (data.done) throw new Error('유효한 궤도 자료가 없습니다'); }
     }
     if (!data.done) {
@@ -311,9 +330,8 @@ async function connectPublic(force=false) {
     if (!finalData) throw new Error('자료 불러오기가 완료되지 않았습니다');
 
     const cached=finalData.delivery==='vercel-cache' || finalData.delivery==='local-cache';
-    const source=finalData.delivery==='vercel-cache' ? 'Vercel' : '로컬';
-    updateSource(cached ? source+' 저장 데이터' : '데이터 갱신됨',finalData);
-  } catch (error) { updateSource('자료 불러오기 실패 · '+(error.name==='TimeoutError' ? '응답 시간 초과' : error.message)); }
+    updateSource(cached ? '저장된 자료 사용' : '자료 갱신 완료',finalData);
+  } catch (error) { updateSource('자료 불러오기 실패 · '+(error.name==='TimeoutError' ? '응답 시간 초과' : error.message)+(state.satellites.some(s=>s.elements) ? ' · 표시 중인 자료 유지' : '')); }
   finally { button.disabled=false; button.textContent='새로고침'; }
 }
 
@@ -364,13 +382,15 @@ $('#catalog-toggle').addEventListener('click',()=>{
 $('#panel-expand').addEventListener('click',()=>{
   const open=panels.dataset.expanded!=='true';
   panels.dataset.expanded=String(open);
-  if (open) { shell.dataset.listOpen='false'; $('#panel-content').scrollTop=0; }
+  if (open) { if (compact.matches) shell.dataset.listOpen='false'; $('#panel-content').scrollTop=0; }
   syncPanels();
 });
 window.addEventListener('keydown',event=>{
-  if (event.key==='Escape' && ((compact.matches && panels.dataset.expanded==='true') || (state.view==='earth' && shell.dataset.listOpen==='true'))) {
-    const target=shell.dataset.listOpen==='true' ? '#catalog-toggle' : '#panel-expand';
-    shell.dataset.listOpen='false'; panels.dataset.expanded='false'; syncPanels(); $(target).focus();
+  if (event.key==='Escape' && (panels.dataset.expanded==='true' || (state.view==='earth' && shell.dataset.listOpen==='true'))) {
+    const expanded=panels.dataset.expanded==='true';
+    if (expanded) panels.dataset.expanded='false';
+    else shell.dataset.listOpen='false';
+    syncPanels(); $(expanded ? '#panel-expand' : '#catalog-toggle').focus();
   }
   if (state.view==='earth' && event.key==='/' && !['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName)) {
     event.preventDefault(); panels.dataset.expanded='false'; shell.dataset.listOpen='true'; syncPanels(); $('.sidebar').scrollTop=0; $('#search').focus();

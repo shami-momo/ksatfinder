@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "node --watch server.mjs",
-    "build": "node build.mjs"
+    "build": "node build.mjs",
+    "test": "node --experimental-vm-modules --test"
   },
   "dependencies": {
     "@vercel/functions": "3.10.4",

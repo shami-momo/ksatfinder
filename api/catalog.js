@@ -44,7 +44,8 @@ async function catalog(onProgress, {force=false} = {}) {
       const elements=[...parseElements(saved.elements).values()];
       if (elements.length) {
         const available=new Set(elements.map(row=>Number(row.NORAD_CAT_ID)));
-        const data={...saved,elements,unavailable:ids.filter(id=>!available.has(id)),done:true,delivery:process.env.VERCEL ? 'vercel-cache' : 'local-cache'};
+        const unavailable=ids.filter(id=>!available.has(id));
+        const data={...saved,elements,unavailable,warnings:unavailable.length ? saved.warnings : undefined,done:true,delivery:process.env.VERCEL ? 'vercel-cache' : 'local-cache'};
         onProgress?.(data);
         return data;
       }
@@ -67,7 +68,7 @@ async function catalog(onProgress, {force=false} = {}) {
       }
     };
     const snapshot = done => ({fetchedAt,elements:[...elements.values()],unavailable:ids.filter(id => !elements.has(id)),done,
-      ...(errors.length ? {warnings:[...new Set(errors)]} : {})});
+      ...(errors.length && elements.size<ids.length ? {warnings:[...new Set(errors)]} : {})});
     const publish = () => {
       if (!listeners.size) return;
       const data = {...snapshot(false),delivery:'upstream'};

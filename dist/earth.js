@@ -89,6 +89,7 @@ export async function createEarth(container,label,hoverLabel,onSelect,getViewpor
   dots.frustumCulled=false;
   scene.add(dots);
   const activeColor=new THREE.Color(styles.getPropertyValue('--main').trim());
+  const satelliteColor=new THREE.Color(styles.getPropertyValue('--text-soft').trim());
   const retiredColor=new THREE.Color(styles.getPropertyValue('--muted').trim());
   const futureColor=new THREE.Color(styles.getPropertyValue('--main-bright').trim());
   const selectedCoordinates=new THREE.InstancedBufferAttribute(new Float32Array(3),3).setUsage(THREE.DynamicDrawUsage);
@@ -176,7 +177,7 @@ export async function createEarth(container,label,hoverLabel,onSelect,getViewpor
     selected=selectedId;
     entries.forEach((entry,index)=>{
       coordinates.setXYZ(index,entry.vector.x,entry.vector.y,entry.vector.z);
-      const color=entry.sat.status==='retired' ? retiredColor : activeColor;
+      const color=entry.sat.status==='retired' ? retiredColor : satelliteColor;
       colors.setXYZ(index,color.r,color.g,color.b);
     });
     coordinates.needsUpdate=colors.needsUpdate=true;
