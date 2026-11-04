@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { createContext, SourceTextModule, SyntheticModule } from 'node:vm';
-import { CATALOG, parseElements } from '../dist/orbits.js';
+import { CATALOG, parseElements, position, sampleDanuri } from '../dist/orbits.js';
 
 const cacheSource=await readFile(new URL('../daily-cache.mjs',import.meta.url),'utf8');
 const catalogSource=await readFile(new URL('../api/catalog.js',import.meta.url),'utf8');
@@ -14,6 +14,20 @@ const rows=satellites.map(s=>({
   INCLINATION:45,RA_OF_ASC_NODE:0,ARG_OF_PERICENTER:0,MEAN_ANOMALY:0,
   BSTAR:0,MEAN_MOTION_DOT:0,MEAN_MOTION_DDOT:0
 }));
+
+test('orbital speed matches position change',()=>{
+  const elements=parseElements(rows).get(satellites[0].id);
+  const sat={elements}, epoch=new Date(elements.EPOCH);
+  const point=position(sat,epoch);
+  const next=position(sat,new Date(+epoch+1000));
+  const distance=Math.hypot(...['x','y','z'].map(key=>next.eci[key]-point.eci[key]));
+  assert.ok(Math.abs(distance-point.speed)<.02);
+});
+
+test('lunar interpolation speed uses kilometres per second',()=>{
+  const data={radius:1,points:[{t:0,x:10,y:0,z:0},{t:1000,x:13,y:4,z:0}]};
+  assert.equal(sampleDanuri(data,500).speed,5);
+});
 
 async function load(source,imports,globals={}) {
   const context=createContext({

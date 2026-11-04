@@ -117,36 +117,43 @@
             <div data-detail="content">
               <div class="detail-header">
                 <div class="detail-heading">
+                  <h2 class="detail-name" data-detail="name">위성 정보</h2>
+                  <div class="detail-subtitle">
+                    <span class="detail-en" data-detail="english">—</span>
+                    <span class="detail-ident" data-detail="identifier">NORAD —</span>
+                  </div>
                   <div class="detail-status">
                     <span class="sat-state detail-state" data-detail="status">—</span>
                     <span class="detail-orbit" data-detail="group">—</span>
                     <span class="detail-agency" data-detail="agencyRow" hidden><span data-detail="agency"></span></span>
                   </div>
-                  <h2 class="detail-name" data-detail="name">위성 정보</h2>
-                  <div class="detail-en" data-detail="english">—</div>
                 </div>
                 <button id="panel-expand" class="detail-toggle" type="button" aria-expanded="false" aria-controls="panel-content" aria-label="위성 정보 펼치기"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 15 6-6 6 6"/></svg></button>
               </div>
               <div class="panel-content" id="panel-content">
-                <h3 class="detail-section-title">상세 정보</h3>
+                <h3 class="detail-section-title">상세</h3>
                 <dl class="detail-launch">
                   <dt>발사일</dt><dd><time data-detail="launched">—</time> <span>UTC</span></dd>
                   <dt hidden>발사체</dt><dd data-detail="vehicle" hidden></dd>
                   <dt hidden>발사장</dt><dd data-detail="site" hidden></dd>
-                  <dt>상세</dt><dd data-detail="description">—</dd>
+                  <dt>설명</dt><dd data-detail="description">—</dd>
                 </dl>
-                <h3 class="detail-section-title orbit-heading" data-detail="orbitHeading" hidden>궤도 정보</h3>
+                <h3 class="detail-section-title orbit-heading" data-detail="orbitHeading" hidden>정보</h3>
                 <dl class="detail-grid" data-detail="earthGrid" hidden>
-                  <div><dt>고도</dt><dd class="orbital-value" data-detail="altitude">—</dd></div>
+                  <div><dt>고도</dt><dd class="orbital-value" data-detail="metric1">—</dd></div>
+                  <div><dt data-detail="speedLabel">속도</dt><dd class="orbital-value" data-detail="metric2">—</dd></div>
                   <div><dt>공전 주기</dt><dd class="orbital-value" data-detail="period">—</dd></div>
                   <div><dt>궤도 경사</dt><dd class="orbital-value" data-detail="inclination">—</dd></div>
                   <div><dt>이심률</dt><dd class="orbital-value" data-detail="eccentricity">—</dd></div>
+                  <div><dt title="발사일 00:00 UTC 기준 경과 일수">궤도 진입 후</dt><dd class="orbital-value" data-detail="metric3">—</dd></div>
                   <div><dt>위도</dt><dd class="orbital-value" data-detail="latitude">—</dd></div>
                   <div><dt>경도</dt><dd class="orbital-value" data-detail="longitude">—</dd></div>
                 </dl>
                 <dl class="detail-grid" data-detail="moonGrid" hidden>
                   <div><dt>고도</dt><dd class="orbital-value" data-detail="moonAltitude">—</dd></div>
                   <div><dt>달 중심 거리</dt><dd class="orbital-value" data-detail="moonDistance">—</dd></div>
+                  <div><dt title="달 고정 좌표계에서 궤적을 보간한 속도">속도</dt><dd class="orbital-value" data-detail="moonSpeed">—</dd></div>
+                  <div><dt title="발사일 00:00 UTC 기준 경과 일수">발사 후</dt><dd class="orbital-value" data-detail="moonLaunchElapsed">—</dd></div>
                   <div><dt>달 위도</dt><dd class="orbital-value" data-detail="moonLatitude">—</dd></div>
                   <div><dt>달 경도</dt><dd class="orbital-value" data-detail="moonLongitude">—</dd></div>
                   <div><dt>지구까지의 거리</dt><dd class="orbital-value" data-detail="earthDistance">—</dd></div>
