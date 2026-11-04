@@ -31,11 +31,7 @@
   --space-4: 1rem;
   --space-5: 1.5rem;
   --space-6: 2rem;
-  --space-7: 3rem;
-  --radius-sm: 0.375rem;
-  --radius-md: 0.625rem;
-  --radius-pill: 999px;
-  --motion-fast: 160ms;
+  --space-7: 3rem;  --motion-fast: 160ms;
   --ease: ease;
   --font-mono: 'IBM Plex Mono', monospace;
   --bg: #171e28;
@@ -67,6 +63,10 @@
 
 * {
   box-sizing: border-box;
+}
+
+*, *::before, *::after {
+  border-radius: 0;
 }
 
 body {
@@ -141,7 +141,6 @@ a:hover {
 .license-content {
   padding: clamp(var(--space-4),3vw,var(--space-5));
   border: 1px solid var(--line-soft);
-  border-radius: calc(var(--space-5) + var(--radius-sm));
   background: var(--bg);
   box-shadow: var(--shadow-sm);
 }
@@ -186,7 +185,6 @@ a:hover {
 
 .site-header {
   background: var(--bg);
-  border-bottom: 1px solid var(--line-soft);
 }
 
 .header-inner {
@@ -214,7 +212,6 @@ a:hover {
   height: 32px;
   padding: 0;
   border: 0;
-  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--muted);
 }
@@ -276,19 +273,15 @@ a:hover {
 
 .site-nav {
   display: flex;
-  gap: var(--space-1);
-  padding: var(--space-1);
-  background: var(--muted-soft);
-  border-radius: var(--radius-md);
+  gap: 24px;
 }
 
 .site-nav button {
-  height: 32px;
+  position: relative;
+  height: 40px;
   line-height: 1.2;
-  --nav-inner-radius: max(0px, calc(var(--radius-md) - var(--space-1)));
-  padding: 0 var(--space-3);
+  padding: 0 2px;
   border: 0;
-  border-radius: var(--nav-inner-radius);
   background: transparent;
   color: var(--muted);
   font-size: 14px;
@@ -297,7 +290,13 @@ a:hover {
 }
 
 .site-nav button[aria-pressed="true"] {
-  background: var(--bg);
-  color: var(--main);
-  box-shadow: var(--shadow-sm);
+  color: var(--text);
+}
+
+.site-nav button[aria-pressed="true"]::after {
+  content: '';
+  position: absolute;
+  inset: auto 0 0;
+  height: 2px;
+  background: var(--main);
 }

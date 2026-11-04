@@ -89,10 +89,10 @@ export function createMap2D({onSelect,onChange,positionAt,isActive}) {
   const canvas = $('#map'), ctx = canvas.getContext('2d');
   function readPalette() {
     const styles=getComputedStyle(document.documentElement);
-    return Object.fromEntries(['main','main-bright','muted','line-soft','marker-outline'].map(key=>[key,styles.getPropertyValue(`--${key}`).trim()]));
+    return Object.fromEntries(['main','main-bright','muted','text-soft','line-soft','marker-outline'].map(key=>[key,styles.getPropertyValue(`--${key}`).trim()]));
   }
   const palette=readPalette();
-  const color=sat=>sat.status==='retired' ? palette.muted : palette.main;
+  const color=sat=>sat.status==='retired' ? palette.muted : palette['text-soft'];
   const state={map:{zoom:1,x:0,y:0},followSelected:true,hovered:null,focused:null};
   let drag, surfaceImage;
   let earthTextureError='';
