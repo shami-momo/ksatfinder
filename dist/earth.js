@@ -252,13 +252,6 @@ export async function createEarth(container,label,hoverLabel,onSelect,getViewpor
   });
   renderer.domElement.addEventListener('pointercancel',()=>{pointer=undefined;});
   renderer.domElement.addEventListener('pointerleave',()=>{hovered=undefined; render();});
-  textureLoader.load('/textures/starmap.jpg',background=>{
-    background.mapping=THREE.EquirectangularReflectionMapping;
-    background.colorSpace=THREE.SRGBColorSpace;
-    scene.background=background;
-    scene.backgroundIntensity=.18;
-    render();
-  },undefined,()=>{});
   controls.addEventListener('change',render);
   new ResizeObserver(render).observe(container);
   render();

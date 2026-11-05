@@ -119,6 +119,7 @@
 }
 
 .map-marker-label {
+  border-radius: var(--radius-sm);
   display: none;
   position: absolute;
   box-sizing: border-box;
@@ -165,7 +166,7 @@
 }
 
 .space-panel {
-  --space-bg: #111;
+  --space-bg: #000;
   position: absolute;
   inset: 0;
   background: var(--space-bg);

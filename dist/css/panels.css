@@ -1,7 +1,8 @@
 /* A quiet catalog and a single expandable information sheet. */
 .sidebar {
-  position: relative;
-  flex: 0 0 var(--catalog-width);
+  position: absolute;
+  inset: 0 auto 0 0;
+  z-index: 8;
   width: var(--catalog-width);
   min-width: 0;
   min-height: 0;
@@ -10,7 +11,12 @@
   flex-direction: column;
   background: var(--bg);
   border-right: 1px solid var(--line);
+  transform: translateX(-100%);
+  visibility: hidden;
+  pointer-events: none;
+  transition: transform 240ms cubic-bezier(.2,.8,.2,1), visibility 0s 240ms;
 }
+.shell.catalog-open .sidebar { transform: translateX(0); visibility: visible; pointer-events: auto; transition-delay: 0s; }
 
 .catalog-toolbar {
   display: flex;
@@ -46,6 +52,7 @@
 }
 
 .search {
+  border-radius: var(--radius-md);
   display: flex;
   align-items: center;
   gap: 10px;
@@ -121,6 +128,7 @@
 .status-select select {
   max-width: 160px;
   min-height: 32px;
+  padding-inline: 10px;
   border: 0;
   background: var(--bg);
   color: var(--text-soft);
@@ -143,7 +151,7 @@
   flex: 1;
   margin-top: 16px;
   /* Align row contents with the toolbar while letting selection fill the gutter. */
-  margin-inline: -14px;
+  margin-inline: -18px;
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -156,17 +164,18 @@
 
 .sat-item {
   width: 100%;
+  border-radius: 0;
   min-height: 60px;
-  padding: 10px 14px;
+  padding: 10px 18px;
   border: 0;
   background: transparent;
   color: var(--text);
   text-align: left;
 }
 
-.sat-item:hover { background: rgb(255 255 255 / 3%); }
+.sat-item:hover { background: var(--highlight-soft); }
 .sat-item[aria-pressed="true"] {
-  background: rgb(255 255 255 / 7%);
+  background: color-mix(in srgb, var(--brand) 24%, transparent);
 }
 .sat-item[aria-pressed="true"] .sat-summary strong { font-weight: 700; }
 
@@ -225,6 +234,7 @@
   line-height: 1.7;
 }
 .freshness-row { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.sidebar > .license-link { align-self: flex-start; flex-shrink: 0; padding: 8px 0 0; font-size: 10px; }
 #source-time { font-size: 10px; }
 #fetch-data {
   flex-shrink: 0;
@@ -263,14 +273,16 @@
   overscroll-behavior: contain;
   scrollbar-width: thin;
   padding: 20px;
-  background: var(--bg);
-  border: 1px solid var(--line);
+  background: var(--panel-surface);
+  border: 1px solid var(--panel-border);
   pointer-events: auto;
-  border-top: 2px solid var(--main);
+  border-radius: var(--radius-lg);
+  backdrop-filter: var(--surface-blur);
+  -webkit-backdrop-filter: var(--surface-blur);
+  box-shadow: var(--panel-shadow);
 }
 
 .detail-subtitle { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 12px; margin-top: 5px; }
-.detail-ident { color: var(--main); font: 10px var(--font-mono); white-space: nowrap; }
 .detail-en { font-family: var(--font-mono); }
 .detail-header { position: relative; padding-right: 24px; }
 .detail-heading { min-width: 0; }
@@ -330,8 +342,10 @@
   pointer-events: none;
 }
 .control-tools { display: contents; }
-.map-display-tools { position: absolute; left: 20px; bottom: 20px; display: flex; gap: 8px; }
+.map-display-tools { position: absolute; left: 20px; bottom: 20px; display: flex; gap: 8px; transition: transform 240ms cubic-bezier(.2,.8,.2,1); }
+.shell.catalog-open .map-display-tools { transform: translateX(var(--catalog-width)); }
 .map-display-tools .site-nav {
+  border-radius: var(--radius-md);
   align-items: center;
   gap: 0;
   padding: 2px 4px;
@@ -344,6 +358,7 @@
 .map-display-tools .site-nav button::after { display: none; }
 
 .map-controls {
+  border-radius: var(--radius-md);
   position: absolute;
   right: 20px;
   bottom: 20px;
@@ -370,4 +385,9 @@
 .map-controls svg { width: 17px; height: 17px; }
 
 .catalog-close { display: none; }
+.site-header, .sidebar, .map-display-tools .site-nav, .map-controls, .license-content {
+  background: var(--panel-surface);
+  backdrop-filter: var(--surface-blur);
+  -webkit-backdrop-filter: var(--surface-blur);
+}
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }

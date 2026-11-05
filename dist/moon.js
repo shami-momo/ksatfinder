@@ -118,13 +118,6 @@ export async function createMoon(container,label) {
     }
     render();
   }
-  new THREE.TextureLoader().load('/textures/starmap.jpg',background=>{
-    background.mapping=THREE.EquirectangularReflectionMapping;
-    background.colorSpace=THREE.SRGBColorSpace;
-    scene.background=background;
-    scene.backgroundIntensity=.18;
-    render();
-  },undefined,()=>{});
   controls.addEventListener('change',render);
   new ResizeObserver(render).observe(container);
   update(time);

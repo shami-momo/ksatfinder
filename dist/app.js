@@ -44,18 +44,13 @@ function currentPosition(sat,time) {
 }
 
 function getViewport() {
-  return viewport || {x:16,y:16,width:Math.max(1,$('#map-wrap').clientWidth-32),height:Math.max(1,$('#map-wrap').clientHeight-32)};
+  return viewport || {x:0,y:0,width:Math.max(1,$('#map-wrap').clientWidth),height:Math.max(1,$('#map-wrap').clientHeight)};
 }
 
 function updateLayout() {
   const box=$('#map-wrap').getBoundingClientRect();
   if (!box.width || !box.height) return;
-  let left=16, right=box.width-16;
-  if (!compact.matches && panels.dataset.expanded==='true') {
-    right=$('#detail').getBoundingClientRect().left-box.left-16;
-  }
-  const top=16, bottom=box.height-16;
-  viewport={x:left,y:top,width:Math.max(80,right-left),height:Math.max(80,bottom-top)};
+  viewport={x:0,y:0,width:box.width,height:box.height};
   $('.workspace').style.setProperty('--map-center-x',(viewport.x+viewport.width/2)+'px');
   $('.workspace').style.setProperty('--map-center-y',(viewport.y+viewport.height/2)+'px');
   flatMap.clamp(); draw();
@@ -67,7 +62,9 @@ function syncPanels() {
   $('#panel-expand').setAttribute('aria-label',expanded ? '위성 정보 접기' : '위성 정보 펼치기');
   $('#panel-content').inert=!expanded;
   const listVisible=state.view==='earth' && shell.dataset.listOpen==='true';
-  catalog.hidden=!listVisible;
+  catalog.hidden=false;
+  catalog.inert=!listVisible;
+  catalog.setAttribute('aria-hidden',String(!listVisible));
   catalogToggle.disabled=state.view!=='earth';
   catalogToggle.setAttribute('aria-expanded',String(listVisible));
   const label=state.view==='earth' ? (listVisible ? '위성 목록 접기' : '위성 목록 열기') : '지구 화면에서 위성 목록을 사용할 수 있습니다';
@@ -144,7 +141,6 @@ function renderDetail() {
 
   const p=moon ? sampleDanuri(moonData,time) : currentPosition(s,time);
   fillDetail({
-    identifier:moon ? '달 궤도선 KPLO' : 'NORAD '+s.id,
     metric1:p ? Math.round(p.altitude).toLocaleString('ko-KR')+' km' : '—',
     metric2:Number.isFinite(p?.speed) ? p.speed.toFixed(2)+' km/s' : '—',
     metric3:'D+'+Math.max(0,Math.floor((Number(time)-Date.parse(s.launched+'T00:00:00Z'))/86400000)),
@@ -240,7 +236,7 @@ function draw() {
 function renderMap() {
   const moon=state.view==='moon', mode=mapMode();
   if (moon && (!moonData || Date.now()-Date.parse(moonData.fetchedAt)>=86400000 || (mode==='3d' ? !moonView : !moonSurfaceReady))) loadMoon();
-  if (panels.classList.contains('is-fullscreen') || (compact.matches && !catalog.hidden)) return;
+  if (panels.classList.contains('is-fullscreen')) return;
   if (mode==='3d') {
     if (moon) moonView?.update(currentTime);
     else if (!earthView) loadEarth();
@@ -389,7 +385,6 @@ $('#catalog-close').addEventListener('click',()=>{
 $('#catalog-toggle').addEventListener('click',()=>{
   const open=shell.dataset.listOpen!=='true';
   shell.dataset.listOpen=String(open);
-  if (open) panels.dataset.expanded='false';
   syncPanels();
 });
 $('#panel-expand').addEventListener('click',()=>{
