@@ -15,8 +15,8 @@
 }
 
 @font-face {
-  font-family: 'IBM Plex Mono';
-  src: url('/fonts/IBMPlexMono-Regular.woff2') format('woff2');
+  font-family: 'Zed Mono';
+  src: url('/fonts/ZedMono-Regular.ttf') format('truetype');
   font-style: normal;
   font-weight: 400;
   font-display: swap;
@@ -33,17 +33,25 @@
   --space-6: 2rem;
   --space-7: 3rem;  --motion-fast: 160ms;
   --ease: ease;
-  --font-mono: 'IBM Plex Mono', monospace;
-  --bg: #171e28;
-  --paper: #10161e;
+  --font-mono: 'Zed Mono', Pretendard, monospace;
+  --bg: #14242e;
+  --paper: #0d1922;
   --text: #e6ebf3;
   --text-soft: #c5cedb;
   --muted: #a0adbf;
-  --muted-soft: #242e3d;
-  --line: #3b495c;
-  --line-soft: #2c3849;
-  --main: #86e4da;
-  --main-bright: #285854;
+  --muted-soft: #203642;
+  --line: #34505e;
+  --line-soft: #253d49;
+  --brand: #087eac;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --panel-surface: rgb(20 36 46 / 75%);
+  --panel-border: rgb(230 235 243 / 16%);
+  --surface-blur: blur(28px);
+  --panel-shadow: 0 8px 32px rgb(0 0 0 / 28%), 0 2px 8px rgb(0 0 0 / 18%);
+  --main: #70d5ed;
+  --main-bright: #087eac;
   --main-softer: color-mix(in srgb, var(--main) 32%, transparent);
   --highlight: color-mix(in srgb, var(--main) 22%, transparent);
   --highlight-soft: color-mix(in srgb, var(--main) 10%, transparent);
@@ -51,7 +59,7 @@
   --shadow-sm: 0 1px 2px rgb(0 0 0 / 15%), 0 3px 10px rgb(0 0 0 / 10%);
   --shadow-md: 0 2px 4px rgb(0 0 0 / 12%), 0 8px 24px rgb(0 0 0 / 15%);
   --map-bg: #101e2e;
-  --label-bg: rgb(23 30 40 / 96%);
+  --label-bg: rgb(20 36 46 / 96%);
   --on-main: #101a2b;
   --marker-outline: #101e2e;
   font-family: var(--font-ui);
@@ -65,8 +73,8 @@
   box-sizing: border-box;
 }
 
-*, *::before, *::after {
-  border-radius: 0;
+button, input, select {
+  border-radius: var(--radius-sm);
 }
 
 body {
@@ -139,6 +147,7 @@ a:hover {
 }
 
 .license-content {
+  border-radius: var(--radius-lg);
   padding: clamp(var(--space-4),3vw,var(--space-5));
   border: 1px solid var(--line-soft);
   background: var(--bg);

@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="theme-color" content="#171e28">
+  <meta name="theme-color" content="#087eac">
   <meta name="description" content="대한민국의 인공위성과 탐사선">
   <link rel="canonical" href="/">
   <meta property="og:type" content="website">
@@ -22,7 +22,7 @@
   <meta name="twitter:image:alt" content="KSATFiNDER · 대한민국의 인공위성과 탐사선">
   <title>KSATFiNDER</title>
   <link rel="preload" href="/fonts/PretendardVariable.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="preload" href="/fonts/IBMPlexMono-Regular.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/fonts/ZedMono-Regular.ttf" as="font" type="font/ttf" crossorigin>
   <link rel="preload" href="/fonts/NEXONFootballGothicBA1.woff" as="font" type="font/woff" crossorigin>
   <link rel="stylesheet" href="/css/base.css">
   <link rel="stylesheet" href="/css/map.css">
@@ -42,7 +42,6 @@
         <time class="header-clock" id="clock" title="KST · 한국 표준시">--:--:--</time>
       </div>
       <div class="header-actions">
-        <a class="license-link" href="/license.html">License</a>
         <nav class="site-nav" aria-label="화면 선택">
           <button type="button" data-view="earth" aria-pressed="true">지구</button>
           <button type="button" data-view="moon" aria-pressed="false">달</button>
@@ -66,6 +65,7 @@
         <div class="freshness-row"><span id="source-time" hidden></span><button id="fetch-data" type="button" title="외부 API에서 자료를 새로 조회합니다">새로고침</button></div>
         <details id="data-warning" hidden><summary id="warning-summary">자료 안내</summary><p id="warning-details"></p></details>
       </div>
+      <a class="license-link" href="/license.html">License</a>
     </aside>
     <main class="workspace">
       <section class="stage" aria-label="위성 지도">
@@ -120,7 +120,6 @@
                   <h2 class="detail-name" data-detail="name">위성 정보</h2>
                   <div class="detail-subtitle">
                     <span class="detail-en" data-detail="english">—</span>
-                    <span class="detail-ident" data-detail="identifier">NORAD —</span>
                   </div>
                   <div class="detail-status">
                     <span class="sat-state detail-state" data-detail="status">—</span>
